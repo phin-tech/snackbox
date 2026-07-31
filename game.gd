@@ -1,6 +1,12 @@
+class_name Game
 extends Node2D
 
-# --- Playfield geometry -------------------------------------------------------
+# Falling-block puzzle. Three modes share this board:
+#   marathon - endless, speed climbs with level
+#   sprint   - clear 40 lines, timed
+#   ultra    - score as much as possible in 2 minutes
+
+signal exit_to_menu
 
 const COLS := 10
 const ROWS := 20              # visible rows
@@ -10,6 +16,9 @@ const CELL := 32
 
 const BOARD_ORIGIN := Vector2(28, 30)
 const PANEL_X := 372.0
+
+const SPRINT_GOAL := 40
+const ULTRA_SECONDS := 120.0
 
 # --- Piece data ---------------------------------------------------------------
 # Each piece is defined by its spawn state inside an N x N box. Rotations are
@@ -66,10 +75,14 @@ const ARR := 0.04             # auto-repeat interval
 const SOFT_DROP_FACTOR := 20.0
 const LOCK_DELAY := 0.5
 const MAX_LOCK_RESETS := 15
+const CLEAR_TIME := 0.18
+const MINI := 18            # preview block size in the side panel
 
 const SCORE_LINES := [0, 100, 300, 500, 800]
 
 # --- State --------------------------------------------------------------------
+
+@export var mode := "marathon"
 
 var rotations := []           # rotations[type][rot] -> Array[Vector2i]
 var grid := []                # grid[row][col] -> -1 empty, else piece type
@@ -86,7 +99,9 @@ var hold_used := false
 var score := 0
 var lines := 0
 var level := 1
+var elapsed := 0.0
 var game_over := false
+var finished := false         # mode goal reached (a win, not a top-out)
 var paused := false
 
 var gravity_timer := 0.0
@@ -100,37 +115,11 @@ var arr_timer := 0.0
 
 var clearing_rows: Array[int] = []
 var clear_timer := 0.0
-const CLEAR_TIME := 0.18
-
-var font: Font
-
-
-const DESIGN_SIZE := Vector2(600, 760)
 
 
 func _ready() -> void:
-	font = ThemeDB.fallback_font
-	_fit_window_to_screen()
 	_build_rotations()
 	new_game()
-
-
-func _fit_window_to_screen() -> void:
-	# Scale the window up to fill most of the usable screen area while keeping
-	# the 600x760 design aspect. Stretch mode "canvas_items" scales the drawing.
-	var screen := DisplayServer.window_get_current_screen()
-	var usable := DisplayServer.screen_get_usable_rect(screen)
-	# On hiDPI displays the usable rect is reported in physical pixels while
-	# window size/position are in logical points, so convert first.
-	var dpi_scale: float = maxf(DisplayServer.screen_get_scale(screen), 1.0)
-	var avail := Vector2(usable.size) / dpi_scale
-	var origin := Vector2(usable.position) / dpi_scale
-
-	var factor: float = min(avail.x * 0.92 / DESIGN_SIZE.x, avail.y * 0.94 / DESIGN_SIZE.y)
-	factor = max(factor, 1.0)
-	var size := Vector2i(DESIGN_SIZE * factor)
-	DisplayServer.window_set_size(size)
-	DisplayServer.window_set_position(Vector2i(origin + (avail - Vector2(size)) * 0.5))
 
 
 func _build_rotations() -> void:
@@ -166,13 +155,19 @@ func new_game() -> void:
 	score = 0
 	lines = 0
 	level = 1
+	elapsed = 0.0
 	game_over = false
+	finished = false
 	paused = false
 	clearing_rows.clear()
 	move_dir = 0
 	piece_type = -1
 	_spawn_piece()
 	queue_redraw()
+
+
+func _stopped() -> bool:
+	return game_over or finished
 
 
 # --- Randomizer (7-bag) -------------------------------------------------------
@@ -246,8 +241,12 @@ func _try_rotate(dir: int) -> bool:
 		return false
 	var from := piece_rot
 	var to := (piece_rot + dir + 4) % 4
+	if from == to:
+		return false
 	var table: Dictionary = KICKS_I if piece_type == 0 else KICKS_JLSTZ
-	var kicks: Array = table[from * 10 + to]
+	var key := from * 10 + to
+	# 180 degree spins have no kick table; just try in place.
+	var kicks: Array = table[key] if table.has(key) else [Vector2i(0, 0)]
 	for k in kicks:
 		var np: Vector2i = piece_pos + k
 		if not _collides(piece_type, to, np):
@@ -339,7 +338,12 @@ func _finish_clear() -> void:
 	lines += n
 	level = 1 + lines / 10
 	clearing_rows.clear()
-	_spawn_piece()
+
+	if mode == "sprint" and lines >= SPRINT_GOAL:
+		finished = true
+		piece_type = -1
+	else:
+		_spawn_piece()
 	queue_redraw()
 
 
@@ -353,17 +357,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if k.pressed:
 		match code:
+			KEY_ESCAPE:
+				exit_to_menu.emit()
+				return
 			KEY_R:
 				new_game()
 				return
-			KEY_P, KEY_ESCAPE:
-				if not game_over:
+			KEY_P:
+				if not _stopped():
 					paused = not paused
 					queue_redraw()
 				return
 
-		if game_over:
-			if code == KEY_ENTER or code == KEY_SPACE:
+		if _stopped():
+			if code == KEY_ENTER or code == KEY_KP_ENTER or code == KEY_SPACE:
 				new_game()
 			return
 		if paused:
@@ -384,8 +391,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				_try_rotate(1)
 			KEY_Z, KEY_CTRL:
 				_try_rotate(-1)
-			KEY_A:
-				_try_rotate(2)
 			KEY_SPACE:
 				if piece_type != -1:
 					_hard_drop()
@@ -405,8 +410,17 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- Main loop ----------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	if game_over or paused:
+	if _stopped() or paused:
 		return
+
+	elapsed += delta
+	if mode == "ultra" and elapsed >= ULTRA_SECONDS:
+		elapsed = ULTRA_SECONDS
+		finished = true
+		queue_redraw()
+		return
+	if mode != "marathon":
+		queue_redraw()  # keep the clock ticking on screen
 
 	if not clearing_rows.is_empty():
 		clear_timer += delta
@@ -467,41 +481,16 @@ func _cell_rect(col: int, row: int) -> Rect2:
 	)
 
 
-func _draw_block(rect: Rect2, color: Color, alpha := 1.0) -> void:
-	var c := color
-	c.a *= alpha
-	draw_rect(rect.grow(-1), c)
-	# Bevel: light on top/left, dark on bottom/right.
-	var light := c.lightened(0.35)
-	light.a = c.a
-	var dark := c.darkened(0.4)
-	dark.a = c.a
-	var r := rect.grow(-1)
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 3)), light)
-	draw_rect(Rect2(r.position, Vector2(3, r.size.y)), light)
-	draw_rect(Rect2(r.position + Vector2(0, r.size.y - 3), Vector2(r.size.x, 3)), dark)
-	draw_rect(Rect2(r.position + Vector2(r.size.x - 3, 0), Vector2(3, r.size.y)), dark)
-
-
-func _draw_outline(rect: Rect2, color: Color, width := 2.0) -> void:
-	draw_rect(rect, color, false, width)
-
-
-func _draw_text(pos: Vector2, text: String, size := 16, color := Color("d8dcea")) -> void:
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
-
-
 func _draw() -> void:
 	var board_rect := Rect2(BOARD_ORIGIN, Vector2(COLS * CELL, ROWS * CELL))
 
-	# Playfield background + grid
-	draw_rect(board_rect, Color("0d1018"))
+	draw_rect(board_rect, Blocks.BG)
 	for c in range(1, COLS):
 		var x := BOARD_ORIGIN.x + c * CELL
-		draw_line(Vector2(x, board_rect.position.y), Vector2(x, board_rect.end.y), Color(1, 1, 1, 0.05))
+		draw_line(Vector2(x, board_rect.position.y), Vector2(x, board_rect.end.y), Blocks.GRID_LINE)
 	for r in range(1, ROWS):
 		var y := BOARD_ORIGIN.y + r * CELL
-		draw_line(Vector2(board_rect.position.x, y), Vector2(board_rect.end.x, y), Color(1, 1, 1, 0.05))
+		draw_line(Vector2(board_rect.position.x, y), Vector2(board_rect.end.x, y), Blocks.GRID_LINE)
 
 	# Settled blocks
 	for r in range(HIDDEN, TOTAL):
@@ -511,66 +500,96 @@ func _draw() -> void:
 				continue
 			if clearing_rows.has(r):
 				var progress: float = clamp(clear_timer / CLEAR_TIME, 0.0, 1.0)
-				_draw_block(_cell_rect(c, r), PIECE_COLOR[t].lerp(Color.WHITE, progress), 1.0 - progress * 0.6)
+				Blocks.block(self, _cell_rect(c, r), PIECE_COLOR[t].lerp(Color.WHITE, progress), 1.0 - progress * 0.6)
 			else:
-				_draw_block(_cell_rect(c, r), PIECE_COLOR[t])
+				Blocks.block(self, _cell_rect(c, r), PIECE_COLOR[t])
 
 	# Ghost + active piece
-	if piece_type != -1 and not game_over:
+	if piece_type != -1 and not _stopped():
 		var ghost := _ghost_pos()
 		for c in _cells(piece_type, piece_rot, ghost):
 			if c.y >= HIDDEN:
-				_draw_block(_cell_rect(c.x, c.y), PIECE_COLOR[piece_type], 0.28)
+				Blocks.block(self, _cell_rect(c.x, c.y), PIECE_COLOR[piece_type], 0.28)
 		for c in _cells(piece_type, piece_rot, piece_pos):
 			if c.y >= HIDDEN:
-				_draw_block(_cell_rect(c.x, c.y), PIECE_COLOR[piece_type])
+				Blocks.block(self, _cell_rect(c.x, c.y), PIECE_COLOR[piece_type])
 
-	_draw_outline(board_rect.grow(2), Color("39405c"), 2.0)
-
+	Blocks.outline(self, board_rect.grow(2))
 	_draw_panel()
+	_draw_controls()
 
 	if paused:
-		_draw_banner("PAUSED", "P to resume")
+		Blocks.banner(self, Main.DESIGN_SIZE.x, "PAUSED", "P to resume")
+	elif finished:
+		Blocks.banner(self, Main.DESIGN_SIZE.x, _finish_title(), _finish_subtitle())
 	elif game_over:
-		_draw_banner("GAME OVER", "ENTER to play again")
+		Blocks.banner(self, Main.DESIGN_SIZE.x, "GAME OVER", "ENTER to play again    ESC for menu")
+
+
+func _finish_title() -> String:
+	return "40 LINES" if mode == "sprint" else "TIME UP"
+
+
+func _finish_subtitle() -> String:
+	if mode == "sprint":
+		return "%s        ENTER to retry" % Blocks.format_time(elapsed)
+	return "%d points        ENTER to retry" % score
 
 
 func _draw_panel() -> void:
 	var x := PANEL_X
-	var box := Vector2(4 * 24 + 16, 4 * 24 + 16)
+	var box := Vector2(4 * MINI + 14, 4 * MINI + 14)
 
-	# HOLD
-	_draw_text(Vector2(x, 52), "HOLD", 15, Color("8892b0"))
+	Blocks.text(self, Vector2(x, 52), "HOLD", 15, Blocks.TEXT_DIM)
 	var hold_rect := Rect2(Vector2(x, 62), box)
-	draw_rect(hold_rect, Color("0d1018"))
-	_draw_outline(hold_rect, Color("39405c"))
+	Blocks.panel(self, hold_rect)
 	if hold_type != -1:
 		_draw_mini(hold_type, hold_rect, 0.45 if hold_used else 1.0)
 
-	# NEXT
-	var ny := hold_rect.end.y + 34
-	_draw_text(Vector2(x, ny - 10), "NEXT", 15, Color("8892b0"))
+	var ny := hold_rect.end.y + 38
+	Blocks.text(self, Vector2(x, ny - 10), "NEXT", 15, Blocks.TEXT_DIM)
 	for i in next_queue.size():
 		var r := Rect2(Vector2(x, ny + i * (box.y + 8)), box)
-		draw_rect(r, Color("0d1018"))
-		_draw_outline(r, Color("39405c"))
+		Blocks.panel(self, r)
 		_draw_mini(next_queue[i], r)
 
-	# Stats
-	var sy := 470.0
-	for entry in [["SCORE", str(score)], ["LEVEL", str(level)], ["LINES", str(lines)]]:
-		_draw_text(Vector2(x, sy), entry[0], 14, Color("8892b0"))
-		_draw_text(Vector2(x, sy + 26), entry[1], 24, Color("f2f5ff"))
+	var sy := 490.0
+	for entry in _stat_rows():
+		Blocks.text(self, Vector2(x, sy), entry[0], 14, Blocks.TEXT_DIM)
+		Blocks.text(self, Vector2(x, sy + 26), entry[1], 24, Blocks.TEXT)
 		sy += 56
 
-	# Controls, below the playfield
+
+func _stat_rows() -> Array:
+	match mode:
+		"sprint":
+			return [
+				["TIME", Blocks.format_time(elapsed)],
+				["LINES LEFT", str(max(SPRINT_GOAL - lines, 0))],
+				["LEVEL", str(level)],
+			]
+		"ultra":
+			return [
+				["TIME LEFT", Blocks.format_time(ULTRA_SECONDS - elapsed)],
+				["SCORE", str(score)],
+				["LINES", str(lines)],
+			]
+		_:
+			return [
+				["SCORE", str(score)],
+				["LEVEL", str(level)],
+				["LINES", str(lines)],
+			]
+
+
+func _draw_controls() -> void:
 	var cy := 700.0
 	for line in [
 		"← →  move        ↓  soft drop        SPACE  hard drop",
 		"↑ / X  rotate cw        Z  rotate ccw        C  hold",
-		"P  pause        R  restart",
+		"P  pause        R  restart        ESC  menu",
 	]:
-		_draw_text(Vector2(BOARD_ORIGIN.x, cy), line, 13, Color("5c6584"))
+		Blocks.text(self, Vector2(BOARD_ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
 		cy += 18
 
 
@@ -585,22 +604,9 @@ func _draw_mini(type: int, box: Rect2, alpha := 1.0) -> void:
 		maxx = max(maxx, c.x)
 		miny = min(miny, c.y)
 		maxy = max(maxy, c.y)
-	var w := (maxx - minx + 1) * 24
-	var h := (maxy - miny + 1) * 24
+	var w := (maxx - minx + 1) * MINI
+	var h := (maxy - miny + 1) * MINI
 	var origin := box.position + (box.size - Vector2(w, h)) * 0.5
 	for c in cells:
-		var r := Rect2(origin + Vector2((c.x - minx) * 24, (c.y - miny) * 24), Vector2(24, 24))
-		_draw_block(r, PIECE_COLOR[type], alpha)
-
-
-func _draw_banner(title: String, subtitle: String) -> void:
-	var w := 600.0
-	var h := 120.0
-	var top := 300.0
-	draw_rect(Rect2(0, top, w, h), Color(0.02, 0.03, 0.06, 0.9))
-	draw_rect(Rect2(0, top, w, 3), Color("00e5ff"))
-	draw_rect(Rect2(0, top + h - 3, w, 3), Color("00e5ff"))
-	var t_size := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 40)
-	draw_string(font, Vector2((w - t_size.x) * 0.5, top + 55), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, Color("f2f5ff"))
-	var s_size := font.get_string_size(subtitle, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
-	draw_string(font, Vector2((w - s_size.x) * 0.5, top + 90), subtitle, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("8892b0"))
+		var r := Rect2(origin + Vector2((c.x - minx) * MINI, (c.y - miny) * MINI), Vector2(MINI, MINI))
+		Blocks.block(self, r, PIECE_COLOR[type], alpha)
