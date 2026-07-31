@@ -5,6 +5,8 @@ vars:
   GODOT: '{{.GODOT | default "/Applications/Godot_mono.app/Contents/MacOS/Godot"}}'
   BUILD_DIR: build
   APP_NAME: Blockfall
+  # Override with: INSTALL_DIR="$HOME/Applications" task install
+  INSTALL_DIR: '{{.INSTALL_DIR | default "/Applications"}}'
 
 env:
   # Godot writes a lot of noise to stdout; keep it quiet for scripted runs.
@@ -95,6 +97,53 @@ tasks:
     deps: [build:macos]
     cmds:
       - open {{.BUILD_DIR}}/macos/{{.APP_NAME}}.app
+
+  install:
+    desc: Build and install the .app into /Applications
+    deps: [build:macos]
+    cmds:
+      - |
+        set -e
+        src="{{.BUILD_DIR}}/macos/{{.APP_NAME}}.app"
+        dest="{{.INSTALL_DIR}}/{{.APP_NAME}}.app"
+
+        if [ -e "$dest" ]; then
+          # Only ever replace something that is actually an app bundle of ours.
+          if [ ! -d "$dest" ] || [ ! -f "$dest/Contents/MacOS/{{.APP_NAME}}" ]; then
+            echo "Refusing to replace $dest - it is not a {{.APP_NAME}} app bundle."
+            exit 1
+          fi
+          echo "Replacing existing $dest"
+          pkill -f "{{.APP_NAME}}.app/Contents/MacOS" 2>/dev/null || true
+          rm -rf "$dest"
+        fi
+
+        if [ ! -w "{{.INSTALL_DIR}}" ]; then
+          echo "{{.INSTALL_DIR}} is not writable by $(whoami)."
+          echo "Either run with sudo, or install to your home folder:"
+          echo "  INSTALL_DIR=\"$HOME/Applications\" task install"
+          exit 1
+        fi
+
+        cp -R "$src" "$dest"
+        echo "Installed $dest"
+
+  uninstall:
+    desc: Remove the installed .app from /Applications
+    cmds:
+      - |
+        dest="{{.INSTALL_DIR}}/{{.APP_NAME}}.app"
+        if [ ! -e "$dest" ]; then
+          echo "Not installed: $dest"
+          exit 0
+        fi
+        if [ ! -d "$dest" ] || [ ! -f "$dest/Contents/MacOS/{{.APP_NAME}}" ]; then
+          echo "Refusing to remove $dest - it is not a {{.APP_NAME}} app bundle."
+          exit 1
+        fi
+        pkill -f "{{.APP_NAME}}.app/Contents/MacOS" 2>/dev/null || true
+        rm -rf "$dest"
+        echo "Removed $dest"
 
   # --- Housekeeping -----------------------------------------------------------
 
