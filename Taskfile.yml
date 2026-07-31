@@ -1,0 +1,175 @@
+version: '3'
+
+vars:
+  # Override with: GODOT=/path/to/Godot task run
+  GODOT: '{{.GODOT | default "/Applications/Godot_mono.app/Contents/MacOS/Godot"}}'
+  BUILD_DIR: build
+  APP_NAME: Blockfall
+
+env:
+  # Godot writes a lot of noise to stdout; keep it quiet for scripted runs.
+  GODOT_SILENCE_XDG_WARNINGS: '1'
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # --- Development ------------------------------------------------------------
+
+  run:
+    desc: Run the game
+    deps: [_check-godot]
+    cmds:
+      - '{{.GODOT}} --path .'
+
+  editor:
+    desc: Open the project in the Godot editor
+    deps: [_check-godot]
+    cmds:
+      - '{{.GODOT}} --editor --path . &'
+
+  import:
+    desc: Import assets and generate the .godot cache (headless)
+    deps: [_check-godot]
+    cmds:
+      - '{{.GODOT}} --headless --path . --import'
+
+  check:
+    desc: Smoke test - boot the game headless and fail on any script error
+    deps: [_check-godot]
+    cmds:
+      - |
+        set -e
+        log=$(mktemp)
+        trap 'rm -f "$log"' EXIT
+        {{.GODOT}} --headless --path . --quit-after 300 2>&1 | tee "$log"
+        if grep -qE 'SCRIPT ERROR|Parse Error|ERROR:' "$log"; then
+          echo ""
+          echo "FAILED: errors found during headless boot (see output above)"
+          exit 1
+        fi
+        echo ""
+        echo "OK: booted 300 frames with no script errors"
+
+  # --- Building ---------------------------------------------------------------
+
+  build:
+    desc: Export a release macOS .app (alias for build:macos)
+    cmds:
+      - task: build:macos
+
+  build:macos:
+    desc: Export a release macOS .app to build/macos/
+    deps: [_check-godot, _check-templates]
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/macos
+      - '{{.GODOT}} --headless --path . --export-release "macOS" {{.BUILD_DIR}}/macos/{{.APP_NAME}}.app'
+      # Godot signs ad-hoc *with* the hardened runtime, and launchd refuses that
+      # combination ("Launchd job spawn failed", POSIX 163) even though the
+      # binary runs fine when invoked directly. Re-sign ad-hoc without it.
+      - task: _resign
+        vars: {APP: '{{.BUILD_DIR}}/macos/{{.APP_NAME}}.app'}
+      - echo "Built {{.BUILD_DIR}}/macos/{{.APP_NAME}}.app"
+    sources:
+      - '*.gd'
+      - '*.tscn'
+      - project.godot
+      - export_presets.cfg
+    generates:
+      - '{{.BUILD_DIR}}/macos/{{.APP_NAME}}.app/Contents/MacOS/*'
+
+  build:debug:
+    desc: Export a debug macOS .app (includes the debugger and verbose errors)
+    deps: [_check-godot, _check-templates]
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/macos-debug
+      - '{{.GODOT}} --headless --path . --export-debug "macOS" {{.BUILD_DIR}}/macos-debug/{{.APP_NAME}}.app'
+      - task: _resign
+        vars: {APP: '{{.BUILD_DIR}}/macos-debug/{{.APP_NAME}}.app'}
+
+  open:
+    desc: Build and launch the exported .app
+    deps: [build:macos]
+    cmds:
+      - open {{.BUILD_DIR}}/macos/{{.APP_NAME}}.app
+
+  # --- Housekeeping -----------------------------------------------------------
+
+  templates:
+    desc: Download and install the Godot export templates required for building
+    deps: [_check-godot]
+    cmds:
+      - |
+        set -e
+        full=$({{.GODOT}} --version | tail -1)
+        # e.g. 4.7.stable.mono.official.5b4e0cb0f -> 4.7.stable.mono
+        version=$(echo "$full" | cut -d. -f1-4)
+        release=$(echo "$full" | cut -d. -f1-2)-$(echo "$full" | cut -d. -f3)
+        mono=""
+        case "$full" in *.mono.*) mono="_mono" ;; esac
+        dest="$HOME/Library/Application Support/Godot/export_templates/$version"
+
+        if [ -d "$dest" ] && [ -n "$(ls -A "$dest" 2>/dev/null)" ]; then
+          echo "Export templates already installed at: $dest"
+          exit 0
+        fi
+
+        url="https://github.com/godotengine/godot/releases/download/$release/Godot_v${release}${mono}_export_templates.tpz"
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        echo "Downloading $url"
+        echo "(this is roughly 1 GB and will take a while)"
+        curl -fL --progress-bar -o "$tmp/templates.tpz" "$url"
+        unzip -q "$tmp/templates.tpz" -d "$tmp"
+        mkdir -p "$dest"
+        cp -R "$tmp/templates/." "$dest/"
+        echo "Installed export templates to: $dest"
+
+  clean:
+    desc: Remove build output
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+
+  clean:all:
+    desc: Remove build output and the Godot import cache
+    cmds:
+      - rm -rf {{.BUILD_DIR}} .godot
+
+  # --- Internal guards --------------------------------------------------------
+
+  _resign:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        codesign --force --deep --sign - "{{.APP}}" 2>&1 | sed 's/^/  codesign: /'
+        codesign --verify --strict "{{.APP}}"
+        echo "  re-signed ad-hoc (hardened runtime removed) so launchd will start it"
+
+  _check-godot:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if [ ! -x "{{.GODOT}}" ]; then
+          echo "Godot not found at: {{.GODOT}}"
+          echo "Set it explicitly, e.g.  GODOT=/path/to/Godot task run"
+          exit 1
+        fi
+
+  _check-templates:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        version=$({{.GODOT}} --version | tail -1 | cut -d. -f1-4)
+        dir="$HOME/Library/Application Support/Godot/export_templates/$version"
+        if [ ! -d "$dir" ] || [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+          echo "Export templates for $version are not installed."
+          echo "Run:  task templates      (downloads ~1 GB)"
+          echo "Or install them from the Godot editor: Editor > Manage Export Templates"
+          exit 1
+        fi

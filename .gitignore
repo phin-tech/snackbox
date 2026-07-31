@@ -1,0 +1,12 @@
+# Godot 4 import cache and generated files
+.godot/
+/android/
+
+# Build output
+build/
+
+# go-task checksum cache
+.task/
+
+# macOS
+.DS_Store
