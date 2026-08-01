@@ -66,6 +66,8 @@ func _demo(node: Node2D) -> void:
 		_demo_snake(node)
 	elif node is Doubles:
 		_demo_doubles(node)
+	elif node is Linkup:
+		_demo_linkup(node)
 
 
 func _demo_blocks(g: Game) -> void:
@@ -133,6 +135,19 @@ func _demo_snake(g: Snake) -> void:
 		g._step()
 		if g.dead:
 			return
+
+
+func _demo_linkup(g: Linkup) -> void:
+	# Lay down all but the last route, so the shot shows a board in progress.
+	g.level = 3
+	g._start_level()
+	for i in g.pairs.size() - 1:
+		var run: Array = g.pairs[i].solution
+		g.grab(run[0])
+		for j in range(1, run.size()):
+			g.extend(run[j])
+		g.release()
+	g.cursor = g.pairs[g.pairs.size() - 1].a
 
 
 func _demo_doubles(g: Doubles) -> void:

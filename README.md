@@ -76,6 +76,23 @@ animation.
 
 Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
 
+### Linkup
+
+Join each pair of dots without crossing, and keep going until every square is
+used. Drag with the mouse, or move the cursor with the arrows and grab with
+space.
+
+<img src="docs/linkup.png" alt="Linkup" width="300">
+
+Levels are generated backwards from a solution, which is what guarantees they
+can be finished: build a Hamiltonian path over the whole grid, randomise it
+with backbite moves, then cut it into runs. Each run is one colour's route and
+its ends are the dots — so laying every route back down fills the board
+exactly. Boards grow from 5×5 to 8×8.
+
+Controls: mouse drag, or `← → ↑ ↓` move and `Space` grab. `N` clear, `R` new
+board, `Esc` menu.
+
 ### Landgrab
 
 Qix style area claiming. Hold a direction to cut into open space, then get back
@@ -108,9 +125,11 @@ handful of functional colours.
 | `landgrab.gd` / `landgrab.tscn` | Landgrab |
 | `snake.gd` / `snake.tscn` | Snake |
 | `doubles.gd` / `doubles.tscn` | Doubles |
+| `linkup.gd` / `linkup.tscn` | Linkup |
 | `scores.gd` | Persistent bests, shared by every game |
 | `tests/smoke.gd` | Headless test suite |
 | `tests/shot.gd` | Renders screenshots for the README |
+| `scripts/test.sh` | Test runner, with the watchdog |
 | `Taskfile.yml` | Run, test, build, install |
 
 Each game is an independent scene that draws itself and emits `exit_to_menu`.

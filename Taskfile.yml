@@ -4,6 +4,7 @@ vars:
   # Override with: GODOT=/path/to/Godot task run
   GODOT: '{{.GODOT | default "/Applications/Godot_mono.app/Contents/MacOS/Godot"}}'
   BUILD_DIR: build
+  TEST_TIMEOUT: 180
   APP_NAME: Snackbox
   # Override with: INSTALL_DIR="$HOME/Applications" task install
   INSTALL_DIR: '{{.INSTALL_DIR | default "/Applications"}}'
@@ -60,24 +61,7 @@ tasks:
     desc: Play every game headlessly and check board invariants
     deps: [_check-godot]
     cmds:
-      - |
-        set -e
-        log=$(mktemp)
-        trap 'rm -f "$log"' EXIT
-        # The suite reports its own failures, but a script error can abort a
-        # test before it records anything - so treat any engine error as a
-        # failure too, regardless of what the suite printed.
-        {{.GODOT}} --headless --path . res://tests/smoke.tscn 2>&1 | tee "$log"
-        if grep -qE 'SCRIPT ERROR|Parse Error|ERROR:' "$log"; then
-          echo ""
-          echo "FAILED: engine errors during the test run (see above)"
-          exit 1
-        fi
-        if ! grep -q 'OK: all smoke tests passed' "$log"; then
-          echo ""
-          echo "FAILED: the suite did not report success"
-          exit 1
-        fi
+      - scripts/test.sh "{{.GODOT}}" {{.TEST_TIMEOUT}}
 
   shot:
     desc: 'Render one screen to a PNG: ID=pills OUT=/tmp/pills.png task shot'
@@ -93,7 +77,7 @@ tasks:
     deps: [_check-godot]
     cmds:
       - mkdir -p docs
-      - for: ["menu", "marathon", "pills", "landgrab", "snake", "doubles"]
+      - for: ["menu", "marathon", "pills", "landgrab", "snake", "doubles", "linkup"]
         cmd: '{{.GODOT}} --path . res://tests/shot.tscn -- --id={{.ITEM}} --out={{.TASKFILE_DIR}}/docs/{{.ITEM}}.png'
 
   # --- Building ---------------------------------------------------------------

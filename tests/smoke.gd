@@ -36,6 +36,9 @@ func _ready() -> void:
 	_test_snake_growth()
 	_run_doubles()
 	_test_doubles_merges()
+	_test_linkup_generator()
+	_test_linkup_solving()
+	_test_linkup_editing()
 
 
 	_cleanup_scores()
@@ -649,4 +652,137 @@ func _test_doubles_merges() -> void:
 	_set_board(g, [[2, 2, 8, 16], [4, 2, 16, 8], [2, 4, 8, 16], [4, 2, 16, 8]])
 	if not g._has_moves():
 		_fail("doubles/dead: a board with an adjacent pair reported no moves")
+	g.queue_free()
+
+
+# --- Linkup -------------------------------------------------------------------
+
+func _test_linkup_generator() -> void:
+	# Every generated board has to be finishable, which means its reference
+	# solution must cover each cell exactly once with no gaps or overlaps.
+	var g: Linkup = load("res://linkup.tscn").instantiate()
+	_drive(g)
+
+	for lvl in range(1, 13):
+		g.level = lvl
+		g._start_level()
+
+		var seen := {}
+		var total := 0
+		for p in g.pairs:
+			var run: Array = p.solution
+			if run.size() < 2:
+				_fail("linkup/gen: level %d produced a pair with a %d cell route" % [lvl, run.size()])
+				break
+			if run[0] == run[run.size() - 1]:
+				_fail("linkup/gen: level %d has a pair whose dots are the same cell" % lvl)
+				break
+			for cell in run:
+				if seen.has(cell):
+					_fail("linkup/gen: level %d reuses cell %d,%d across routes" % [lvl, cell.x, cell.y])
+					return
+				seen[cell] = true
+				total += 1
+			# Routes must be walkable: consecutive cells adjacent.
+			for i in range(run.size() - 1):
+				if (run[i] - run[i + 1]).length() != 1:
+					_fail("linkup/gen: level %d route jumps from %d,%d to %d,%d"
+						% [lvl, run[i].x, run[i].y, run[i + 1].x, run[i + 1].y])
+					return
+
+		if total != g.size * g.size:
+			_fail("linkup/gen: level %d covers %d of %d cells" % [lvl, total, g.size * g.size])
+		if g.pairs.size() < 3:
+			_fail("linkup/gen: level %d only made %d pairs" % [lvl, g.pairs.size()])
+	g.queue_free()
+
+
+func _test_linkup_solving() -> void:
+	# Replaying the reference solution through the real input path must solve it.
+	var g: Linkup = load("res://linkup.tscn").instantiate()
+	_drive(g)
+
+	for lvl in [1, 4, 7, 10]:
+		g.level = lvl
+		g._start_level()
+
+		for i in g.pairs.size():
+			var run: Array = g.pairs[i].solution
+			if not g.grab(run[0]):
+				_fail("linkup/solve: level %d could not grab the dot for pair %d" % [lvl, i])
+				break
+			for j in range(1, run.size()):
+				if not g.extend(run[j]):
+					_fail("linkup/solve: level %d could not extend pair %d to step %d" % [lvl, i, j])
+					break
+			g.release()
+
+		if g.connected_count() != g.pairs.size():
+			_fail("linkup/solve: level %d joined %d of %d pairs"
+				% [lvl, g.connected_count(), g.pairs.size()])
+		if g.filled_cells() != g.size * g.size:
+			_fail("linkup/solve: level %d filled %d of %d cells"
+				% [lvl, g.filled_cells(), g.size * g.size])
+		if not g.solved:
+			_fail("linkup/solve: level %d was not reported solved" % lvl)
+	g.queue_free()
+
+
+func _test_linkup_editing() -> void:
+	var g: Linkup = load("res://linkup.tscn").instantiate()
+	_drive(g)
+	g.level = 1
+	g._start_level()
+
+	# Lay pair 0 down completely, then drive pair 1 across it: the first route
+	# must lose its tail rather than both owning the same cell.
+	var run0: Array = g.pairs[0].solution
+	g.grab(run0[0])
+	for j in range(1, run0.size()):
+		g.extend(run0[j])
+	g.release()
+	var full: int = g.paths[0].size()
+
+	var crossed := false
+	for i in range(1, g.pairs.size()):
+		var run: Array = g.pairs[i].solution
+		g.grab(run[0])
+		# Look for a step that would land on pair 0's route.
+		for j in range(1, run.size()):
+			g.extend(run[j])
+		for n in g._neighbours(g.paths[i][g.paths[i].size() - 1]):
+			if g.owner_of[n.y][n.x] == 0 and g.endpoint_of[n.y][n.x] == -1:
+				if g.extend(n):
+					crossed = true
+					if g.owner_of[n.y][n.x] != i:
+						_fail("linkup/edit: crossing did not take the cell over")
+					if g.paths[0].size() >= full:
+						_fail("linkup/edit: the crossed route kept its full length")
+				break
+		g.release()
+		if crossed:
+			break
+
+	# Backing up over your own route rubs it out. Start from a fresh board -
+	# the crossing section above lays every route down, which solves it.
+	g._start_level()
+	var run1: Array = g.pairs[0].solution
+	g.grab(run1[0])
+	g.extend(run1[1])
+	g.extend(run1[2])
+	var before: int = g.paths[0].size()
+	g.extend(run1[1])          # step back
+	if g.paths[0].size() != before - 1:
+		_fail("linkup/edit: stepping back did not shorten the route (%d -> %d)"
+			% [before, g.paths[0].size()])
+
+	# A dot belonging to another colour is a wall.
+	g._start_level()
+	g.grab(g.pairs[0].solution[0])
+	for n in g._neighbours(g.pairs[0].solution[0]):
+		var ep: int = g.endpoint_of[n.y][n.x]
+		if ep != -1 and ep != 0:
+			if g.extend(n):
+				_fail("linkup/edit: drew straight through another colour's dot")
+			break
 	g.queue_free()

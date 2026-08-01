@@ -19,6 +19,8 @@ const ENTRIES := [
 	{"id": "snake", "label": "Classic", "desc": "Eat, grow, don't bite yourself."},
 	{"header": "DOUBLES"},
 	{"id": "doubles", "label": "2048", "desc": "Slide and merge your way to 2048."},
+	{"header": "LINKUP"},
+	{"id": "linkup", "label": "Connect", "desc": "Join every pair, fill every square."},
 ]
 
 var index := 1
@@ -69,6 +71,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			chosen.emit("snake")
 		KEY_7:
 			chosen.emit("doubles")
+		KEY_8:
+			chosen.emit("linkup")
 
 
 func _draw() -> void:
