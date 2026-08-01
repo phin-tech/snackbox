@@ -15,6 +15,10 @@ const ENTRIES := [
 	{"id": "pills", "label": "Virus Clear", "desc": "Match 4 to wipe out every virus."},
 	{"header": "LANDGRAB"},
 	{"id": "landgrab", "label": "Claim", "desc": "Cut off territory, dodge the drifters."},
+	{"header": "SNAKE"},
+	{"id": "snake", "label": "Classic", "desc": "Eat, grow, don't bite yourself."},
+	{"header": "DOUBLES"},
+	{"id": "doubles", "label": "2048", "desc": "Slide and merge your way to 2048."},
 ]
 
 var index := 1
@@ -61,6 +65,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			chosen.emit("pills")
 		KEY_5:
 			chosen.emit("landgrab")
+		KEY_6:
+			chosen.emit("snake")
+		KEY_7:
+			chosen.emit("doubles")
 
 
 func _draw() -> void:
@@ -70,25 +78,29 @@ func _draw() -> void:
 	Blocks.text_centered(self, w * 0.5, 176, "SNACKBOX", 52, Blocks.TEXT)
 	draw_rect(Rect2(w * 0.5 - 90, 196, 180, 3), Blocks.ACCENT)
 
-	var y := 268.0
+	# Compact list - the description lives in a fixed footer instead of inline,
+	# so the rows don't shift around as the selection moves.
+	var y := 250.0
 	for i in ENTRIES.size():
 		var e: Dictionary = ENTRIES[i]
 		if e.has("header"):
-			Blocks.text(self, Vector2(120, y), e.header, 14, Blocks.TEXT_FAINT)
-			y += 30
+			y += 8
+			Blocks.text(self, Vector2(120, y), e.header, 12, Blocks.TEXT_FAINT)
+			y += 22
 			continue
 
 		var selected := i == index
-		var row := Rect2(104, y - 22, w - 208, 42)
+		var row := Rect2(104, y - 20, w - 208, 34)
 		if selected:
 			draw_rect(row, Color(0, 0.9, 1, 0.10))
 			draw_rect(Rect2(row.position, Vector2(3, row.size.y)), Blocks.ACCENT)
 
 		var label_color: Color = Blocks.TEXT if selected else Blocks.TEXT_DIM
-		Blocks.text(self, Vector2(124, y), e.label, 22, label_color)
-		if selected:
-			Blocks.text(self, Vector2(124, y + 18), e.desc, 12, Blocks.TEXT_FAINT)
-		y += 62
+		Blocks.text(self, Vector2(124, y), e.label, 20, label_color)
+		y += 38
 
-	Blocks.text_centered(self, w * 0.5, 690, "↑ ↓  choose        ENTER  play", 13, Blocks.TEXT_FAINT)
-	Blocks.text_centered(self, w * 0.5, 712, "ESC returns here from any game", 13, Blocks.TEXT_FAINT)
+	var current: Dictionary = ENTRIES[index]
+	if current.has("desc"):
+		Blocks.text_centered(self, w * 0.5, 664, current.desc, 14, Blocks.TEXT_DIM)
+	Blocks.text_centered(self, w * 0.5, 700, "↑ ↓  choose        ENTER  play", 13, Blocks.TEXT_FAINT)
+	Blocks.text_centered(self, w * 0.5, 722, "ESC returns here from any game", 13, Blocks.TEXT_FAINT)

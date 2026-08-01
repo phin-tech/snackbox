@@ -3,6 +3,21 @@
 A small collection of casual games built in Godot 4. GDScript only, no external
 assets — every board, piece, virus and panel is drawn procedurally.
 
+<p align="center">
+  <img src="docs/menu.png" alt="Snackbox menu" width="240">
+  <img src="docs/marathon.png" alt="Blockfall" width="240">
+  <img src="docs/pills.png" alt="Pill Doctor" width="240">
+</p>
+<p align="center">
+  <img src="docs/landgrab.png" alt="Landgrab" width="240">
+  <img src="docs/snake.png" alt="Snake" width="240">
+  <img src="docs/doubles.png" alt="Doubles" width="240">
+</p>
+
+Screenshots are generated, not captured — `task shots` plays each game with a
+seeded set of moves and saves the rendered frame, so they always show real
+boards and never drift out of date.
+
 ## Running
 
 Open the folder as a project in Godot 4.4+ and press F5, or:
@@ -46,6 +61,19 @@ higher.
 Controls: `← →` move, `↓` soft drop, `Space` hard drop, `↑`/`X` rotate cw,
 `Z` rotate ccw, `P` pause, `R` restart, `Esc` menu.
 
+### Snake
+
+Eat, grow, don't run into the walls or yourself. Speeds up as you get longer.
+
+Controls: `← → ↑ ↓` or `WASD` turn, `P` pause, `R` restart, `Esc` menu.
+
+### Doubles
+
+Slide the whole board one way; equal tiles fuse. Each tile only fuses once per
+move. Reach 2048, then keep going until the board locks up.
+
+Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
+
 ### Landgrab
 
 Qix style area claiming. Hold a direction to cut into open space, then get back
@@ -65,7 +93,10 @@ Controls: `← → ↑ ↓` move, `R` restart, `Esc` menu.
 | `game.gd` / `game.tscn` | Blockfall (all three modes) |
 | `pills.gd` / `pills.tscn` | Pill Doctor |
 | `landgrab.gd` / `landgrab.tscn` | Landgrab |
+| `snake.gd` / `snake.tscn` | Snake |
+| `doubles.gd` / `doubles.tscn` | Doubles |
 | `tests/smoke.gd` | Headless test suite |
+| `tests/shot.gd` | Renders screenshots for the README |
 | `Taskfile.yml` | Run, test, build, install |
 
 Each game is an independent scene that draws itself and emits `exit_to_menu`.
@@ -80,7 +111,10 @@ than it saves. Adding a game means dropping in a scene, adding a row to
 thousands of simulated frames, checking invariants continuously: pieces never
 overlap the stack, pill halves always keep a matching partner, virus counters
 match the board, the player never stands on unclaimed space. It also runs
-deterministic scenarios for pill clears, chains, and sealing a Landgrab pocket.
+deterministic scenarios: pill clears and chains, sealing a Landgrab pocket,
+snake growth and wall death, and twelve exact-board assertions covering
+Doubles' merge rules (pairs fuse, four-of-a-kind makes two tiles not one, a
+tile never fuses twice in a move, a settled row reports no movement).
 
 ## License
 

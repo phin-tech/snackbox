@@ -24,6 +24,10 @@ func _ready() -> void:
 	_test_pills_chain()
 	_run_landgrab()
 	_test_landgrab_seals_pocket()
+	_run_snake()
+	_test_snake_growth()
+	_run_doubles()
+	_test_doubles_merges()
 
 	if failures.is_empty():
 		print("OK: all smoke tests passed")
@@ -390,4 +394,202 @@ func _test_landgrab_seals_pocket() -> void:
 		if g.grid[r][3] != Landgrab.FILLED:
 			_fail("landgrab/seal: pocket cell at 3,%d was left unclaimed" % r)
 			break
+	g.queue_free()
+
+
+# --- Snake --------------------------------------------------------------------
+
+func _run_snake() -> void:
+	var g: Snake = load("res://snake.tscn").instantiate()
+	_drive(g)
+
+	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	var deaths := 0
+	var max_len := 0
+
+	for i in FRAMES:
+		if randi() % 5 == 0:
+			g._turn(dirs[randi() % dirs.size()])
+		g._process(DT)
+		_check_snake(g)
+		max_len = max(max_len, g.body.size())
+		if g.dead:
+			deaths += 1
+			g.new_game()
+
+	if deaths == 0:
+		_fail("snake: never died in %d frames, the test is not driving it" % FRAMES)
+	g.queue_free()
+
+
+func _check_snake(g: Snake) -> void:
+	if g.body.is_empty():
+		_fail("snake: body vanished")
+		return
+	var seen := {}
+	for cell in g.body:
+		if cell.x < 0 or cell.x >= Snake.COLS or cell.y < 0 or cell.y >= Snake.ROWS:
+			if not g.dead:
+				_fail("snake: body left the board at %d,%d" % [cell.x, cell.y])
+			return
+		if seen.has(cell) and not g.dead:
+			_fail("snake: body overlaps itself at %d,%d" % [cell.x, cell.y])
+			return
+		seen[cell] = true
+	if not g.dead and g.body.has(g.food):
+		_fail("snake: food spawned inside the snake at %d,%d" % [g.food.x, g.food.y])
+
+
+func _test_snake_growth() -> void:
+	# Eating adds exactly one segment; an ordinary step adds none.
+	var g: Snake = load("res://snake.tscn").instantiate()
+	_drive(g)
+
+	g.body = [Vector2i(5, 5), Vector2i(4, 5), Vector2i(3, 5)]
+	g.dir = Vector2i(1, 0)
+	g.queued.clear()
+	g.grow_by = 0
+	g.food = Vector2i(6, 5)
+	var before := g.body.size()
+
+	g._step()
+	if g.body.size() != before + 1:
+		_fail("snake/growth: eating did not grow the snake (%d -> %d)" % [before, g.body.size()])
+	if g.score != 10:
+		_fail("snake/growth: eating scored %d, expected 10" % g.score)
+
+	var after_eat := g.body.size()
+	g.food = Vector2i(20, 20)
+	g._step()
+	if g.body.size() != after_eat:
+		_fail("snake/growth: plain step changed length (%d -> %d)" % [after_eat, g.body.size()])
+
+	# Walking into a wall ends the run.
+	g.body = [Vector2i(Snake.COLS - 1, 5)]
+	g.dir = Vector2i(1, 0)
+	g.queued.clear()
+	g._step()
+	if not g.dead:
+		_fail("snake/growth: walking into the wall did not end the game")
+	g.queue_free()
+
+
+# --- Doubles ------------------------------------------------------------------
+
+func _run_doubles() -> void:
+	var g: Doubles = load("res://doubles.tscn").instantiate()
+	_drive(g)
+
+	var dirs := [Doubles.LEFT, Doubles.RIGHT, Doubles.UP, Doubles.DOWN]
+	var games := 0
+
+	for i in FRAMES:
+		g._move(dirs[randi() % dirs.size()])
+		_check_doubles(g)
+		if g.dead:
+			games += 1
+			g.new_game()
+
+	if games == 0:
+		_fail("doubles: never filled the board in %d moves" % FRAMES)
+	g.queue_free()
+
+
+func _check_doubles(g: Doubles) -> void:
+	if g.score < 0:
+		_fail("doubles: negative score (%d)" % g.score)
+		return
+	for r in Doubles.SIZE:
+		for c in Doubles.SIZE:
+			var v: int = g.grid[r][c]
+			if v == 0:
+				continue
+			# Every tile must be a power of two, at least 2.
+			if v < 2 or (v & (v - 1)) != 0:
+				_fail("doubles: tile %d at %d,%d is not a power of two" % [v, c, r])
+				return
+
+
+func _rows(g: Doubles) -> Array:
+	var out := []
+	for r in Doubles.SIZE:
+		out.append(g.grid[r].duplicate())
+	return out
+
+
+func _set_board(g: Doubles, rows: Array) -> void:
+	for r in Doubles.SIZE:
+		for c in Doubles.SIZE:
+			g.grid[r][c] = rows[r][c]
+
+
+func _expect_board(g: Doubles, dir: Vector2i, before: Array, after: Array, name: String) -> void:
+	_set_board(g, before)
+	g.score = 0
+	var moved := g._slide(dir)
+	var got := _rows(g)
+	if got != after:
+		_fail("doubles/%s: got %s, expected %s" % [name, str(got), str(after)])
+	if not moved and before != after:
+		_fail("doubles/%s: reported no movement but the board changed" % name)
+
+
+func _test_doubles_merges() -> void:
+	var g: Doubles = load("res://doubles.tscn").instantiate()
+	_drive(g)
+	var z := [0, 0, 0, 0]
+
+	# Pairs fuse, and each tile only fuses once per move.
+	_expect_board(g, Doubles.LEFT,
+		[[2, 2, 4, 4], z, z, z],
+		[[4, 8, 0, 0], z, z, z], "left-pairs")
+
+	# Four of a kind makes two tiles, not one.
+	_expect_board(g, Doubles.LEFT,
+		[[4, 4, 4, 4], z, z, z],
+		[[8, 8, 0, 0], z, z, z], "left-quad")
+
+	# Three of a kind fuses the leading pair only.
+	_expect_board(g, Doubles.LEFT,
+		[[2, 2, 2, 0], z, z, z],
+		[[4, 2, 0, 0], z, z, z], "left-triple")
+
+	# Sliding right resolves from the right-hand edge instead.
+	_expect_board(g, Doubles.RIGHT,
+		[[2, 2, 2, 0], z, z, z],
+		[[0, 0, 2, 4], z, z, z], "right-triple")
+
+	# Gaps close up even with nothing to merge.
+	_expect_board(g, Doubles.LEFT,
+		[[0, 2, 0, 4], z, z, z],
+		[[2, 4, 0, 0], z, z, z], "left-compact")
+
+	# Columns work the same way.
+	_expect_board(g, Doubles.UP,
+		[[2, 0, 0, 0], [2, 0, 0, 0], [4, 0, 0, 0], [4, 0, 0, 0]],
+		[[4, 0, 0, 0], [8, 0, 0, 0], z, z], "up-pairs")
+
+	_expect_board(g, Doubles.DOWN,
+		[[2, 0, 0, 0], [2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+		[z, z, z, [4, 0, 0, 0]], "down-pairs")
+
+	# A move that shifts nothing must report no movement (so no tile spawns).
+	_set_board(g, [[2, 4, 8, 16], z, z, z])
+	if g._slide(Doubles.LEFT):
+		_fail("doubles/no-op: a settled row reported movement")
+
+	# Scoring is the sum of what was created.
+	_set_board(g, [[2, 2, 4, 4], z, z, z])
+	g.score = 0
+	g._slide(Doubles.LEFT)
+	if g.score != 12:
+		_fail("doubles/score: merging 2+2 and 4+4 scored %d, expected 12" % g.score)
+
+	# A full board with no equal neighbours is game over.
+	_set_board(g, [[2, 4, 8, 16], [4, 2, 16, 8], [2, 4, 8, 16], [4, 2, 16, 8]])
+	if g._has_moves():
+		_fail("doubles/dead: a locked board still reported moves available")
+	_set_board(g, [[2, 2, 8, 16], [4, 2, 16, 8], [2, 4, 8, 16], [4, 2, 16, 8]])
+	if not g._has_moves():
+		_fail("doubles/dead: a board with an adjacent pair reported no moves")
 	g.queue_free()
