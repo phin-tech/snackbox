@@ -67,7 +67,10 @@ Controls: `← → ↑ ↓` or `WASD` turn, `P` pause, `R` restart, `Esc` menu.
 ### Doubles
 
 Slide the whole board one way; equal tiles fuse. Each tile only fuses once per
-move. Reach 2048, then keep going until the board locks up.
+move. Reach 2048, then keep going until the board locks up. Tiles animate along
+the path they actually travelled, and merges bump as their halves land — the
+grid reaches its final state immediately, so input never waits on the
+animation.
 
 <img src="docs/doubles.png" alt="Doubles" width="300">
 
@@ -77,7 +80,13 @@ Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
 
 Table duel in the spirit of *Shufflepuck Café*. The whole back wall is the
 goal, so defence is entirely about where your mallet is. First to seven, then
-the next regular sits down — each one faster and better at reading the puck.
+the next regular sits down.
+
+The regulars are Doug (night manager, keeps nodding off), Princess Brenda
+(swans about admiring herself), Gary the Thumb (lunges at everything), Mx. Void
+(drifts sideways in a way no elbow explains) and The Mop (says nothing, is
+simply always where the puck will be). Each has a face for a mallet, a
+behavioural tic, and opinions about how it's going.
 
 <img src="docs/puck.png" alt="Puck Café" width="300">
 

@@ -29,6 +29,16 @@ const TILE_COLORS := {
 const DARK_LABEL := [8, 16, 2048]
 
 var grid := []                # grid[row][col] -> 0 empty, else tile value
+
+# Slide animation. _slide records where every tile came from, and _draw
+# interpolates along that path while `slide` runs down to zero. The grid is
+# already in its final state the whole time - the animation is purely visual,
+# so input and rules never wait on it.
+var moving := []              # [{from: Vector2, to: Vector2, value: int}]
+var merged_at := []           # cells that fused this move, for the bump
+var slide := 0.0
+const SLIDE_TIME := 0.11
+
 var score := 0
 var won := false              # hit 2048 at least once; play carries on
 var dead := false
@@ -87,29 +97,46 @@ func _line(index: int, dir: Vector2i) -> Array[Vector2i]:
 
 func _slide(dir: Vector2i) -> bool:
 	var moved := false
+	moving = []
+	merged_at = []
 	for index in SIZE:
 		var cells := _line(index, dir)
 
 		var values: Array[int] = []
+		var sources: Array[Vector2i] = []
 		for cell in cells:
 			var v: int = grid[cell.y][cell.x]
 			if v != 0:
 				values.append(v)
+				sources.append(cell)
 
-		# Fuse equal neighbours once each, front to back.
+		# Fuse equal neighbours once each, front to back. Each destination
+		# records which source cells travelled into it.
 		var merged: Array[int] = []
+		var came_from := []
 		var i := 0
 		while i < values.size():
 			if i + 1 < values.size() and values[i] == values[i + 1]:
 				var sum: int = values[i] * 2
 				merged.append(sum)
+				came_from.append([sources[i], sources[i + 1]])
 				score += sum
 				if sum >= TARGET:
 					won = true
 				i += 2
 			else:
 				merged.append(values[i])
+				came_from.append([sources[i]])
 				i += 1
+
+		for slot in came_from.size():
+			var dest: Vector2i = cells[slot]
+			var srcs: Array = came_from[slot]
+			for src in srcs:
+				if src != dest:
+					moving.append({"from": src, "to": dest, "value": grid[src.y][src.x]})
+			if srcs.size() == 2:
+				merged_at.append(dest)
 
 		while merged.size() < SIZE:
 			merged.append(0)
@@ -140,6 +167,7 @@ func _move(dir: Vector2i) -> void:
 		return
 	if not _slide(dir):
 		return          # nothing shifted, so no new tile either
+	slide = 1.0 if not moving.is_empty() else 0.0
 	_spawn()
 	if not _has_moves():
 		dead = true
@@ -169,6 +197,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if slide > 0.0:
+		slide = max(slide - delta / SLIDE_TIME, 0.0)
+		queue_redraw()
 	if pop > 0.0:
 		pop = max(pop - delta * 5.0, 0.0)
 		queue_redraw()
@@ -188,12 +219,23 @@ func _draw() -> void:
 	var board := Rect2(ORIGIN, Vector2(side, side))
 	draw_rect(board, Blocks.BG)
 
+	# Empty wells first.
+	for r in SIZE:
+		for c in SIZE:
+			if grid[r][c] == 0 or slide > 0.0:
+				draw_rect(_tile_rect(c, r), Color(1, 1, 1, 0.04))
+
+	if slide > 0.0:
+		_draw_sliding()
+		Blocks.outline(self, board.grow(2))
+		_draw_chrome(side)
+		return
+
 	for r in SIZE:
 		for c in SIZE:
 			var rect := _tile_rect(c, r)
 			var v: int = grid[r][c]
 			if v == 0:
-				draw_rect(rect, Color(1, 1, 1, 0.04))
 				continue
 
 			# Newly spawned tiles pop in rather than appearing flat.
@@ -218,7 +260,63 @@ func _draw() -> void:
 				label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, text_col)
 
 	Blocks.outline(self, board.grow(2))
+	_draw_chrome(side)
 
+
+func _draw_tile(rect: Rect2, v: int, bump := 0.0) -> void:
+	var r := rect
+	if bump > 0.0:
+		var scale := 1.0 + 0.10 * bump
+		r = Rect2(rect.position - rect.size * (scale - 1.0) * 0.5, rect.size * scale)
+	var col: Color = TILE_COLORS.get(v, Color("8b5cf6"))
+	draw_rect(r, col)
+
+	var label := str(v)
+	var size := 44
+	if v >= 1024:
+		size = 30
+	elif v >= 128:
+		size = 36
+	# Warm and bone tiles need dark figures; the rest take light ones.
+	var text_col: Color = Blocks.PAPER if DARK_LABEL.has(v) else Blocks.INK
+	var dims := Blocks.font().get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
+	draw_string(Blocks.font(), r.position + Vector2((r.size.x - dims.x) * 0.5, r.size.y * 0.5 + size * 0.35),
+		label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, text_col)
+
+
+func _draw_sliding() -> void:
+	# `slide` runs 1 -> 0, so the eased progress runs 0 -> 1.
+	var t: float = 1.0 - slide
+	var eased: float = 1.0 - pow(1.0 - t, 3.0)      # ease-out cubic
+
+	for m in moving:
+		var from: Vector2 = _tile_rect(m.from.x, m.from.y).position
+		var to: Vector2 = _tile_rect(m.to.x, m.to.y).position
+		var at: Vector2 = from.lerp(to, eased)
+		_draw_tile(Rect2(at, Vector2(TILE, TILE)), m.value)
+
+	# Tiles that didn't travel still need drawing, and merged results bump in
+	# once their halves have arrived.
+	for r in SIZE:
+		for c in SIZE:
+			var v: int = grid[r][c]
+			if v == 0:
+				continue
+			var travelling := false
+			for m in moving:
+				if m.to == Vector2i(c, r):
+					travelling = true
+					break
+			if travelling:
+				if merged_at.has(Vector2i(c, r)) and eased > 0.85:
+					_draw_tile(_tile_rect(c, r), v, (eased - 0.85) / 0.15)
+				continue
+			if Vector2i(c, r) == spawned and pop > 0.0:
+				continue        # the new tile appears after the slide settles
+			_draw_tile(_tile_rect(c, r), v)
+
+
+func _draw_chrome(side: int) -> void:
 	Blocks.text(self, Vector2(ORIGIN.x, 108), "DOUBLES", 34, Blocks.INK)
 	Blocks.rule(self, Vector2(ORIGIN.x, 122), side, Blocks.RED, 4.0)
 	Blocks.stat(self, Vector2(ORIGIN.x, 152), "SCORE", str(score), 26)
