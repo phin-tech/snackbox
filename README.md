@@ -13,10 +13,9 @@ task --list     # everything else
 Press `F` for fullscreen, `Esc` to return to the menu from any game.
 
 **High scores.** Finish a run well and you're asked for your name. The tables
-live under **High Scores** on the menu — Fence keeps one per seed, since a score
-only means something against the board it was played on.
+live under **High Scores** on the menu.
 
-**Seeds.** Fence, Linkup, Shapes, Gridlock and Decant all show a four-character
+**Seeds.** Linkup, Shapes, Gridlock and Decant all show a four-character
 seed. Everyone gets the same one each day, so you can compare scores on the same
 board — press `S` to type someone else's and play theirs instead.
 
@@ -85,22 +84,6 @@ three — and a clue carrying a number fixes its area too.
 <img src="docs/shapes.png" alt="Shapes" width="300">
 
 Drag out a rectangle, click one again to take it back · `N` clear · `R` new board
-
-## Fence
-
-An original one. You get a fixed length of fence — draw a **closed loop** along
-the grid lines, and everything inside it is yours, the good cells and the bad
-ones alike.
-
-<img src="docs/fence.png" alt="Fence" width="300">
-
-That single rule is the whole game: a tight loop is cheap but misses things, a
-sprawling one reaches everything and runs out of fence. Every level has a par,
-which is the shape the board was built around — so the target is known to be
-reachable rather than guessed at. Beating it is allowed.
-
-Drag along the grid lines and come back to where you started · `N` clear ·
-`R` new board
 
 ## Pyramid
 

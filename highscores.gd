@@ -2,7 +2,7 @@ class_name HighScores
 extends Node2D
 
 # The tables, one game at a time. Left and right walk between them; each shows
-# the names, what they scored, and - where it matters - the seed they did it on.
+# the names, what they scored, and the seed they did it on.
 
 signal exit_to_menu
 
@@ -16,29 +16,10 @@ const TABLES := [
 ]
 
 var page := 0
-var extra: Array = []          # Fence keeps a table per seed, found at runtime
-
-
-func _ready() -> void:
-	_find_fence_tables()
-
-
-func _find_fence_tables() -> void:
-	# Fence scores are only comparable within a seed, so each seed that has been
-	# played gets its own table rather than one pooled list.
-	extra = []
-	Scores._load_tables()
-	for key in Scores._tables.keys():
-		if str(key).begins_with("fence."):
-			extra.append({
-				"key": key, "title": "FENCE", "sub": "SEED " + str(key).substr(6),
-				"unit": "points",
-			})
-	extra.sort_custom(func(a, b): return a.sub < b.sub)
 
 
 func pages() -> Array:
-	return TABLES + extra
+	return TABLES
 
 
 func _unhandled_input(event: InputEvent) -> void:

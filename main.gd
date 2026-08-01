@@ -28,7 +28,6 @@ const GAMES := {
 	"shapes": preload("res://shapes.tscn"),
 	"pyramid": preload("res://pyramid.tscn"),
 	"decant": preload("res://decant.tscn"),
-	"fence": preload("res://fence.tscn"),
 	"highscores": preload("res://highscores.tscn"),
 }
 

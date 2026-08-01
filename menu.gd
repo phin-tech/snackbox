@@ -38,7 +38,6 @@ const TREE := [
 			{"id": "shapes", "label": "Shapes", "note": "Carve the grid into the rectangles it asks for."},
 			{"id": "gridlock", "label": "Gridlock", "note": "Slide the cars, free the red one."},
 			{"id": "decant", "label": "Decant", "note": "Pour until every tube is one colour."},
-			{"id": "fence", "label": "Fence", "note": "One loop, a fixed length. Enclose what's worth having."},
 		],
 	},
 	{
