@@ -29,6 +29,16 @@ const COLORS := [
 	Color("e069a8"),  # pink
 ]
 
+# Difficulty picks how fast boards grow and how many colours share them.
+# Fewer, longer routes are easier to reason about; more, shorter ones are not.
+const DIFFICULTY := {
+	"easy":   {"start": 5, "grow": 4, "max": 6, "pairs": 3, "pair_grow": 3},
+	"normal": {"start": 5, "grow": 3, "max": 7, "pairs": 4, "pair_grow": 2},
+	"hard":   {"start": 6, "grow": 2, "max": 8, "pairs": 5, "pair_grow": 2},
+}
+
+@export var difficulty := "normal"
+
 var size := MIN_SIZE
 var level := 1
 var owner_of := []            # owner_of[row][col] -> colour index, or -1
@@ -51,8 +61,13 @@ func new_game() -> void:
 	_start_level()
 
 
+func _rules() -> Dictionary:
+	return DIFFICULTY.get(difficulty, DIFFICULTY["normal"])
+
+
 func _start_level() -> void:
-	size = clampi(MIN_SIZE + (level - 1) / 3, MIN_SIZE, MAX_SIZE)
+	var r := _rules()
+	size = clampi(r.start + (level - 1) / r.grow, MIN_SIZE, r.max)
 	_generate()
 	active = -1
 	dragging = false
@@ -125,7 +140,9 @@ func _hamiltonian() -> Array[Vector2i]:
 
 func _pair_count() -> int:
 	# Enough colours to be interesting, few enough that routes stay long.
-	return clampi(3 + level / 2, 3, min(COLORS.size(), size + 1))
+	var r := _rules()
+	var want: int = r.pairs + (level - 1) / r.pair_grow
+	return clampi(want, 3, min(COLORS.size(), size + 1))
 
 
 func _generate() -> void:
@@ -310,7 +327,7 @@ func _check_solved() -> void:
 		return
 	solved = true
 	release()
-	Scores.submit_high("linkup", level)
+	Scores.submit_high("linkup." + difficulty, level)
 
 
 # --- Input --------------------------------------------------------------------
@@ -463,13 +480,15 @@ func _draw_hud() -> void:
 	var x := ORIGIN.x
 
 	Blocks.text(self, Vector2(x, 108), "LINKUP", 34, Blocks.INK)
+	Blocks.tracked(self, Vector2(x + 150, 108), difficulty.to_upper(), 11, Blocks.RED)
 	Blocks.rule(self, Vector2(x, 122), BOARD_PX, Blocks.RED, 3.0)
 
 	Blocks.stat(self, Vector2(x, 150), "LEVEL", str(level), 24)
 	Blocks.stat(self, Vector2(x + 110, 150), "PAIRS", "%d/%d" % [connected_count(), pairs.size()], 24)
 	Blocks.stat(self, Vector2(x + 230, 150), "FILLED", "%d%%" % int(100.0 * filled_cells() / (size * size)), 24)
-	if Scores.has("linkup"):
-		Blocks.stat(self, Vector2(x + 350, 150), "BEST", "LVL %d" % int(Scores.get_best("linkup")), 24)
+	if Scores.has("linkup." + difficulty):
+		Blocks.stat(self, Vector2(x + 350, 150), "BEST",
+			"LVL %d" % int(Scores.get_best("linkup." + difficulty)), 24)
 
 	Blocks.rule(self, Vector2(x, 686), BOARD_PX, Blocks.INK, 1.0)
 	var cy := 706.0

@@ -1,9 +1,13 @@
-class_name Landgrab
+class_name Mondrian
 extends Node2D
 
-# Qix / Barrack style area claiming. Cut into open space to draw a trail, get
-# back to safe ground to seal it off, and any pocket the drifters aren't in
-# becomes yours. Claim the target percentage to clear the level.
+# Qix style area claiming, painted as a De Stijl canvas. Cut into open space to
+# draw a trail, get back to solid ground to seal it off, and any pocket the
+# drifters aren't in becomes yours.
+#
+# Every sealed region is filled flat in one of Mondrian's colours and outlined
+# in heavy black, so the board composes itself into a painting as you claim it.
+# There is no grid: the black lines are the structure.
 
 signal exit_to_menu
 
@@ -26,10 +30,22 @@ const MOVE_INTERVAL := 0.028      # how fast the player walks
 const DEATH_PAUSE := 1.1
 const START_LIVES := 3
 
-const COLOR_FILLED := Color("2d6fc0")
-const COLOR_TRAIL := Color("ff3b30")
-const COLOR_PLAYER := Color("efede8")
-const COLOR_ENEMY := Color("efede8")
+const COLOR_TRAIL := Color("d0021b")
+const COLOR_PLAYER := Color("f4f1e8")
+const COLOR_ENEMY := Color("f4f1e8")
+const CANVAS := Color("1c1f24")      # bare, unpainted ground
+const LINE := Color("070707")
+const LINE_W := 3.0
+
+# Mondrian's palette, weighted the way he used it: mostly white, with the
+# primaries as accents.
+const PAINTS := [
+	Color("f4f1e8"), Color("f4f1e8"), Color("f4f1e8"), Color("f4f1e8"),
+	Color("d0021b"), Color("d0021b"),
+	Color("0b4ea2"), Color("0b4ea2"),
+	Color("f2c230"),
+	Color("1a1a1a"),
+]
 
 var grid := []
 var state := PLAYING
@@ -45,6 +61,8 @@ var enter_from := Vector2i.ZERO   # safe cell the current trail started from
 var move_timer := 0.0
 var death_timer := 0.0
 
+var region_of := []               # region_of[row][col] -> index into regions
+var regions := []                 # colour per sealed region
 var enemies := []                 # [{pos: Vector2, vel: Vector2}]
 var flash := 0.0
 var recorded := false
@@ -70,11 +88,20 @@ func _start_level() -> void:
 		row.fill(EMPTY)
 		grid.append(row)
 
+	region_of = []
+	for r in ROWS:
+		var rr := []
+		rr.resize(COLS)
+		rr.fill(-1)
+		region_of.append(rr)
+	regions = [Color("f4f1e8")]        # the frame is white
+
 	# Two-cell border is the starting safe ground.
 	for r in ROWS:
 		for c in COLS:
 			if r < 2 or r >= ROWS - 2 or c < 2 or c >= COLS - 2:
 				grid[r][c] = FILLED
+				region_of[r][c] = 0
 
 	player = Vector2i(1, 1)
 	drawing = false
@@ -170,6 +197,7 @@ func _close_region() -> void:
 				grid[r][c] = FILLED
 				gained += 1
 
+	_paint_new_regions()
 	score += gained * 2
 	_recount()
 
@@ -178,9 +206,33 @@ func _close_region() -> void:
 		state = WON
 
 
+func _paint_new_regions() -> void:
+	# Anything newly claimed gets grouped into connected regions, and each one
+	# is painted a single flat colour.
+	for r in ROWS:
+		for c in COLS:
+			if grid[r][c] != FILLED or region_of[r][c] != -1:
+				continue
+			var id := regions.size()
+			regions.append(PAINTS[randi() % PAINTS.size()])
+			var queue: Array[Vector2i] = [Vector2i(c, r)]
+			region_of[r][c] = id
+			while not queue.is_empty():
+				var cur: Vector2i = queue.pop_back()
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var n: Vector2i = cur + d
+					if not _in_bounds(n):
+						continue
+					if grid[n.y][n.x] != FILLED or region_of[n.y][n.x] != -1:
+						continue
+					region_of[n.y][n.x] = id
+					queue.append(n)
+
+
 func _die() -> void:
 	for c in trail:
 		grid[c.y][c.x] = EMPTY
+		region_of[c.y][c.x] = -1
 	trail.clear()
 	drawing = false
 	lives -= 1
@@ -271,7 +323,7 @@ func _process(delta: float) -> void:
 
 	if state == LOST and not recorded:
 		recorded = true
-		Scores.submit_high("landgrab", score)
+		Scores.submit_high("mondrian", score)
 
 	if state == WON or state == LOST:
 		queue_redraw()
@@ -307,37 +359,68 @@ func _cell_rect(c: int, r: int) -> Rect2:
 
 func _draw() -> void:
 	var board := Rect2(ORIGIN, Vector2(COLS * CELL, ROWS * CELL))
-	draw_rect(board, Blocks.BG)
+	draw_rect(board, CANVAS)
 
+	# Flat colour fields. No grid - the black lines carry the structure.
 	for r in ROWS:
 		for c in COLS:
-			match grid[r][c]:
-				FILLED:
-					Blocks.block(self, _cell_rect(c, r), COLOR_FILLED)
-				TRAIL:
-					Blocks.block(self, _cell_rect(c, r), COLOR_TRAIL)
+			if grid[r][c] == FILLED:
+				var id: int = region_of[r][c]
+				var col: Color = regions[id] if id >= 0 and id < regions.size() else Color("f4f1e8")
+				draw_rect(_cell_rect(c, r), col)
+			elif grid[r][c] == TRAIL:
+				draw_rect(_cell_rect(c, r), COLOR_TRAIL)
+
+	# Heavy black rules wherever a painted field meets something else.
+	for r in ROWS:
+		for c in COLS:
+			if grid[r][c] != FILLED:
+				continue
+			var here: int = region_of[r][c]
+			var rect := _cell_rect(c, r)
+			if _edge(c, r, Vector2i(0, -1), here):
+				draw_rect(Rect2(rect.position.x, rect.position.y - LINE_W * 0.5, CELL, LINE_W), LINE)
+			if _edge(c, r, Vector2i(0, 1), here):
+				draw_rect(Rect2(rect.position.x, rect.end.y - LINE_W * 0.5, CELL, LINE_W), LINE)
+			if _edge(c, r, Vector2i(-1, 0), here):
+				draw_rect(Rect2(rect.position.x - LINE_W * 0.5, rect.position.y, LINE_W, CELL), LINE)
+			if _edge(c, r, Vector2i(1, 0), here):
+				draw_rect(Rect2(rect.end.x - LINE_W * 0.5, rect.position.y, LINE_W, CELL), LINE)
 
 	# Player
 	if state == PLAYING or state == DYING:
 		var blink := state != DYING or fmod(flash, 0.2) < 0.1
 		if blink:
-			Blocks.block(self, _cell_rect(player.x, player.y), COLOR_PLAYER)
+			var pr := _cell_rect(player.x, player.y).grow(1)
+			draw_rect(pr, COLOR_PLAYER)
+			Blocks.outline(self, pr, LINE, 2.0)
 
 	# Drifters
 	for e in enemies:
 		var center: Vector2 = ORIGIN + (e.pos + Vector2(0.5, 0.5)) * CELL
 		draw_circle(center, CELL * 1.3, COLOR_ENEMY)
-		draw_circle(center, CELL * 0.55, Blocks.PAPER)
-		draw_circle(center, CELL * 0.28, Blocks.RED)
+		draw_arc(center, CELL * 1.3, 0.0, TAU, 24, LINE, 2.0)
+		draw_circle(center, CELL * 0.42, LINE)
 
-	Blocks.outline(self, board.grow(2))
+	Blocks.outline(self, board, LINE, 4.0)
 	_draw_hud()
 	_draw_controls()
 
 	if state == WON:
-		Blocks.banner(self, Main.DESIGN_SIZE.x, "AREA CLEARED", "ENTER for level %d" % (level + 1))
+		Blocks.banner(self, Main.DESIGN_SIZE.x, "CANVAS FILLED", "ENTER FOR LEVEL %d" % (level + 1))
 	elif state == LOST:
-		Blocks.banner(self, Main.DESIGN_SIZE.x, "GAME OVER", "ENTER to play again    ESC for menu")
+		Blocks.banner(self, Main.DESIGN_SIZE.x, "GAME OVER", "ENTER TO PLAY AGAIN        ESC FOR MENU")
+
+
+func _edge(c: int, r: int, dir: Vector2i, here: int) -> bool:
+	# A line is drawn where a field meets bare canvas, the frame, or a field of
+	# a different colour.
+	var n := Vector2i(c, r) + dir
+	if not _in_bounds(n):
+		return true
+	if grid[n.y][n.x] != FILLED:
+		return true
+	return region_of[n.y][n.x] != here
 
 
 func _draw_hud() -> void:
@@ -346,19 +429,20 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(ORIGIN.x, 26), "LEVEL", str(level), 22)
 	Blocks.stat(self, Vector2(ORIGIN.x + 110, 26), "LIVES", str(lives), 22)
 	Blocks.stat(self, Vector2(ORIGIN.x + 220, 26), "SCORE", str(score), 22)
-	if Scores.has("landgrab"):
-		Blocks.stat(self, Vector2(ORIGIN.x + 330, 26), "BEST", str(int(Scores.get_best("landgrab"))), 22)
+	if Scores.has("mondrian"):
+		Blocks.stat(self, Vector2(ORIGIN.x + 330, 26), "BEST", str(int(Scores.get_best("mondrian"))), 22)
 	Blocks.tracked(self, Vector2(ORIGIN.x + 430, 26), "CLAIMED", 11, Blocks.INK_MID)
 	var pct_color: Color = Blocks.RED if claimed_percent >= TARGET_PERCENT else Blocks.INK
 	Blocks.text(self, Vector2(ORIGIN.x + 430, 52), "%d%%" % int(claimed_percent), 22, pct_color)
 
 	# Progress bar under the board
-	var bar := Rect2(ORIGIN.x, ORIGIN.y + ROWS * CELL + 14, COLS * CELL, 8)
+	var bar := Rect2(ORIGIN.x, ORIGIN.y + ROWS * CELL + 16, COLS * CELL, 10)
 	draw_rect(bar, Blocks.PAPER_SUNK)
 	var frac: float = clampf(claimed_percent / 100.0, 0.0, 1.0)
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), Blocks.INK)
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), Color("f2c230"))
 	var target_x := bar.position.x + bar.size.x * (TARGET_PERCENT / 100.0)
-	draw_rect(Rect2(Vector2(target_x - 1, bar.position.y - 4), Vector2(2, bar.size.y + 8)), Blocks.RED)
+	draw_rect(Rect2(Vector2(target_x - 1, bar.position.y - 4), Vector2(2, bar.size.y + 8)), Color("d0021b"))
+	Blocks.outline(self, bar, LINE, 2.0)
 
 
 func _draw_controls() -> void:

@@ -15,10 +15,13 @@ const GAMES := {
 	"sprint": preload("res://game.tscn"),
 	"ultra": preload("res://game.tscn"),
 	"pills": preload("res://pills.tscn"),
-	"landgrab": preload("res://landgrab.tscn"),
+	"mondrian": preload("res://mondrian.tscn"),
 	"snake": preload("res://snake.tscn"),
 	"doubles": preload("res://doubles.tscn"),
-	"linkup": preload("res://linkup.tscn"),
+	"linkup.easy": preload("res://linkup.tscn"),
+	"linkup.normal": preload("res://linkup.tscn"),
+	"linkup.hard": preload("res://linkup.tscn"),
+	"gridlock": preload("res://gridlock.tscn"),
 }
 
 var screen: Node2D = null
@@ -26,7 +29,7 @@ var screen: Node2D = null
 
 func _ready() -> void:
 	_fit_window_to_screen()
-	# Skip the menu when asked: godot --path . -- --game=landgrab
+	# Skip the menu when asked: godot --path . -- --game=mondrian
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--game="):
 			var id := arg.trim_prefix("--game=")
@@ -48,11 +51,27 @@ func _fit_window_to_screen() -> void:
 	var avail := Vector2(usable.size) / dpi_scale
 	var origin := Vector2(usable.position) / dpi_scale
 
-	var factor: float = min(avail.x * 0.92 / DESIGN_SIZE.x, avail.y * 0.94 / DESIGN_SIZE.y)
+	# Leave room for the title bar, then take essentially all the height that
+	# remains - the design is portrait, so height is always the binding limit.
+	var room := Vector2(avail.x * 0.94, (avail.y - 34.0) * 0.99)
+	var factor: float = min(room.x / DESIGN_SIZE.x, room.y / DESIGN_SIZE.y)
 	factor = max(factor, 1.0)
 	var size := Vector2i(DESIGN_SIZE * factor)
 	DisplayServer.window_set_size(size)
 	DisplayServer.window_set_position(Vector2i(origin + (avail - Vector2(size)) * 0.5))
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Fullscreen is the quickest way to make it bigger still.
+	if event is InputEventKey and event.pressed and not event.echo:
+		var code := (event as InputEventKey).physical_keycode
+		if code == KEY_F or code == KEY_F11:
+			var mode := DisplayServer.window_get_mode()
+			if mode == DisplayServer.WINDOW_MODE_FULLSCREEN:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			else:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			get_viewport().set_input_as_handled()
 
 
 func _swap(next: Node2D) -> void:
@@ -72,5 +91,7 @@ func _start(id: String) -> void:
 	var game: Node2D = GAMES[id].instantiate()
 	if game is Game:
 		game.mode = id
+	elif game is Linkup:
+		game.difficulty = id.split(".")[1]
 	game.exit_to_menu.connect(_show_menu)
 	_swap(game)

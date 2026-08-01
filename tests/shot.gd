@@ -60,14 +60,16 @@ func _demo(node: Node2D) -> void:
 		_demo_blocks(node)
 	elif node is Pills:
 		_demo_pills(node)
-	elif node is Landgrab:
-		_demo_landgrab(node)
+	elif node is Mondrian:
+		_demo_mondrian(node)
 	elif node is Snake:
 		_demo_snake(node)
 	elif node is Doubles:
 		_demo_doubles(node)
 	elif node is Linkup:
 		_demo_linkup(node)
+	elif node is Gridlock:
+		_demo_gridlock(node)
 
 
 func _demo_blocks(g: Game) -> void:
@@ -99,7 +101,7 @@ func _demo_pills(p: Pills) -> void:
 					p._lock_pill()
 
 
-func _demo_landgrab(g: Landgrab) -> void:
+func _demo_mondrian(g: Mondrian) -> void:
 	# Carve a couple of pockets so the shot shows claimed territory.
 	var moves := [
 		[Vector2i(0, 1), 20], [Vector2i(1, 0), 14], [Vector2i(0, -1), 20],
@@ -108,7 +110,7 @@ func _demo_landgrab(g: Landgrab) -> void:
 	]
 	for m in moves:
 		for _i in m[1]:
-			if g.state != Landgrab.PLAYING:
+			if g.state != Mondrian.PLAYING:
 				return
 			g._step_player(m[0])
 		g._move_enemies(DT)
@@ -148,6 +150,17 @@ func _demo_linkup(g: Linkup) -> void:
 			g.extend(run[j])
 		g.release()
 	g.cursor = g.pairs[g.pairs.size() - 1].a
+
+
+func _demo_gridlock(g: Gridlock) -> void:
+	g.level = 4
+	g._start_level()
+	# Shuffle a few cars so the board looks played rather than freshly dealt.
+	for _i in 6:
+		var idx := randi() % g.vehicles.size()
+		g.move_vehicle(idx, 1 if randi() % 2 == 0 else -1)
+	g.selected = 0
+	g.cursor = g.vehicles[0].pos
 
 
 func _demo_doubles(g: Doubles) -> void:

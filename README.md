@@ -9,6 +9,8 @@ real boards and never drift out of date.
 
 <img src="docs/menu.png" alt="Snackbox menu" width="300">
 
+Press `F` for fullscreen. The menu takes clicks as well as arrows.
+
 ## Running
 
 Open the folder as a project in Godot 4.4+ and press F5, or:
@@ -23,7 +25,7 @@ task --list                    # everything else
 Jump straight into a game while developing:
 
 ```sh
-task run -- --game=landgrab
+task run -- --game=mondrian
 ```
 
 ## The games
@@ -84,6 +86,77 @@ space.
 
 <img src="docs/linkup.png" alt="Linkup" width="300">
 
+Easy, Normal and Hard change how fast boards grow and how many colours share
+them — fewer, longer routes are easier to reason about than many short ones.
+Bests are tracked per difficulty.
+
+Levels are generated backwards from a solution, which is what guarantees they
+can be finished: build a Hamiltonian path over the whole grid, randomise it
+with backbite moves, then cut it into runs. Each run is one colour's route and
+its ends are the dots — so laying every route back down fills the board
+exactly. Boards grow from 5×5 to 8×8.
+
+Controls: mouse drag, or `← → ↑ ↓` move and `Space` grab. `N` clear, `R` new
+board, `Esc` menu.
+
+### Mondrian
+
+Qix style area claiming, painted as a De Stijl canvas. Hold a direction to cut
+into open space, then get back to solid ground to seal the cut. Any pocket the
+drifters aren't in becomes yours — and every sealed region is filled flat in one
+of Mondrian's colours and outlined in heavy black, so the board composes itself
+into a painting as you claim it. Claim 75% to clear the level.
+
+<img src="docs/mondrian.png" alt="Mondrian" width="300">
+
+Controls: `← → ↑ ↓` move, `R` restart, `Esc` menu.
+
+### Gridlock
+
+Sliding traffic jam, after *Rush Hour*. Cars and trucks only move along their
+own axis; shuffle them until the red car can reach the gap on the right.
+
+<img src="docs/gridlock.png" alt="Gridlock" width="300">
+
+Boards are generated backwards from the finished position — park the red car at
+the exit, drop in the other vehicles, then make random legal moves. Every move
+is reversible, so wherever the scramble lands can always be driven back.
+
+Controls: drag a car along its axis, or `Tab` to pick and `← → ↑ ↓` to push.
+`R` new board, `Esc` menu.
+
+### Snake
+
+Eat, grow, don't run into the walls or yourself. Speeds up as you get longer.
+
+<img src="docs/snake.png" alt="Snake" width="300">
+
+Controls: `← → ↑ ↓` or `WASD` turn, `P` pause, `R` restart, `Esc` menu.
+
+### Doubles
+
+Slide the whole board one way; equal tiles fuse. Each tile only fuses once per
+move. Reach 2048, then keep going until the board locks up. Tiles animate along
+the path they actually travelled, and merges bump as their halves land — the
+grid reaches its final state immediately, so input never waits on the
+animation.
+
+<img src="docs/doubles.png" alt="Doubles" width="300">
+
+Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
+
+### Linkup
+
+Join each pair of dots without crossing, and keep going until every square is
+used. Drag with the mouse, or move the cursor with the arrows and grab with
+space.
+
+<img src="docs/linkup.png" alt="Linkup" width="300">
+
+Easy, Normal and Hard change how fast boards grow and how many colours share
+them — fewer, longer routes are easier to reason about than many short ones.
+Bests are tracked per difficulty.
+
 Levels are generated backwards from a solution, which is what guarantees they
 can be finished: build a Hamiltonian path over the whole grid, randomise it
 with backbite moves, then cut it into runs. Each run is one colour's route and
@@ -122,7 +195,8 @@ handful of functional colours.
 | `blocks.gd` | Shared palette and drawing helpers |
 | `game.gd` / `game.tscn` | Blockfall (all three modes) |
 | `pills.gd` / `pills.tscn` | Pill Doctor |
-| `landgrab.gd` / `landgrab.tscn` | Landgrab |
+| `mondrian.gd` / `mondrian.tscn` | Mondrian |
+| `gridlock.gd` / `gridlock.tscn` | Gridlock |
 | `snake.gd` / `snake.tscn` | Snake |
 | `doubles.gd` / `doubles.tscn` | Doubles |
 | `linkup.gd` / `linkup.tscn` | Linkup |

@@ -30,8 +30,8 @@ func _ready() -> void:
 	_test_pills_horizontal_clear()
 	_test_pills_vertical_clear()
 	_test_pills_chain()
-	_run_landgrab()
-	_test_landgrab_seals_pocket()
+	_run_mondrian()
+	_test_mondrian_seals_pocket()
 	_run_snake()
 	_test_snake_growth()
 	_run_doubles()
@@ -39,6 +39,9 @@ func _ready() -> void:
 	_test_linkup_generator()
 	_test_linkup_solving()
 	_test_linkup_editing()
+	_test_gridlock_generator()
+	_test_gridlock_solvable()
+	_test_gridlock_moves()
 
 
 	_cleanup_scores()
@@ -353,10 +356,10 @@ func _check_pills(p: Pills) -> void:
 		_fail("pills: virus counter %d does not match %d on the board" % [p.viruses_left, counted])
 
 
-# --- Landgrab -----------------------------------------------------------------
+# --- Mondrian -----------------------------------------------------------------
 
-func _run_landgrab() -> void:
-	var g: Landgrab = load("res://landgrab.tscn").instantiate()
+func _run_mondrian() -> void:
+	var g: Mondrian = load("res://mondrian.tscn").instantiate()
 	_drive(g)
 
 	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
@@ -368,73 +371,73 @@ func _run_landgrab() -> void:
 		# Walk a random direction for a stretch, the way a player holds a key.
 		var dir: Vector2i = dirs[randi() % dirs.size()]
 		for _s in randi_range(1, 6):
-			if g.state != Landgrab.PLAYING:
+			if g.state != Mondrian.PLAYING:
 				break
 			g._step_player(dir)
-		if g.state == Landgrab.PLAYING:
+		if g.state == Mondrian.PLAYING:
 			g._move_enemies(DT)
 
-		_check_landgrab(g)
+		_check_mondrian(g)
 
 		if g.claimed_percent > last_pct:
 			claims += 1
 		last_pct = g.claimed_percent
 
-		if g.state == Landgrab.DYING:
+		if g.state == Mondrian.DYING:
 			deaths += 1
 			g._respawn()
-		elif g.state == Landgrab.WON:
+		elif g.state == Mondrian.WON:
 			g.level += 1
 			g._start_level()
 			last_pct = g.claimed_percent
-		elif g.state == Landgrab.LOST:
+		elif g.state == Mondrian.LOST:
 			g.new_game()
 			last_pct = g.claimed_percent
 
 	if claims == 0:
-		_fail("landgrab: never claimed any area in %d frames" % FRAMES)
+		_fail("mondrian: never claimed any area in %d frames" % FRAMES)
 	g.queue_free()
 
 
-func _check_landgrab(g: Landgrab) -> void:
+func _check_mondrian(g: Mondrian) -> void:
 	if g.claimed_percent < -0.01 or g.claimed_percent > 100.01:
-		_fail("landgrab: percentage out of range (%f)" % g.claimed_percent)
+		_fail("mondrian: percentage out of range (%f)" % g.claimed_percent)
 		return
 	if g.lives < 0:
-		_fail("landgrab: lives went negative (%d)" % g.lives)
+		_fail("mondrian: lives went negative (%d)" % g.lives)
 		return
 	if not g._in_bounds(g.player):
-		_fail("landgrab: player left the board at %d,%d" % [g.player.x, g.player.y])
+		_fail("mondrian: player left the board at %d,%d" % [g.player.x, g.player.y])
 		return
 	# The player may only stand on solid ground or their own fresh trail.
 	# During the death pause the trail has been erased under their feet, which
 	# is expected, so this only applies to active play.
-	if g.state == Landgrab.PLAYING:
+	if g.state == Mondrian.PLAYING:
 		var under: int = g.grid[g.player.y][g.player.x]
-		if under == Landgrab.EMPTY:
-			_fail("landgrab: player standing on unclaimed space at %d,%d" % [g.player.x, g.player.y])
+		if under == Mondrian.EMPTY:
+			_fail("mondrian: player standing on unclaimed space at %d,%d" % [g.player.x, g.player.y])
 			return
 	# Trail bookkeeping must match the board.
 	for c in g.trail:
-		if g.grid[c.y][c.x] != Landgrab.TRAIL:
-			_fail("landgrab: trail list disagrees with the board at %d,%d" % [c.x, c.y])
+		if g.grid[c.y][c.x] != Mondrian.TRAIL:
+			_fail("mondrian: trail list disagrees with the board at %d,%d" % [c.x, c.y])
 			return
 	if not g.drawing and not g.trail.is_empty():
-		_fail("landgrab: trail left behind after sealing")
+		_fail("mondrian: trail left behind after sealing")
 	for e in g.enemies:
 		var p: Vector2 = e.pos
-		if p.x < 0 or p.x >= Landgrab.COLS or p.y < 0 or p.y >= Landgrab.ROWS:
-			_fail("landgrab: drifter escaped the board at %f,%f" % [p.x, p.y])
+		if p.x < 0 or p.x >= Mondrian.COLS or p.y < 0 or p.y >= Mondrian.ROWS:
+			_fail("mondrian: drifter escaped the board at %f,%f" % [p.x, p.y])
 			return
 
 
-func _test_landgrab_seals_pocket() -> void:
+func _test_mondrian_seals_pocket() -> void:
 	# Wall off a small pocket with no drifter in it - it should all become ours.
-	var g: Landgrab = load("res://landgrab.tscn").instantiate()
+	var g: Mondrian = load("res://mondrian.tscn").instantiate()
 	_drive(g)
 
 	# Park the single drifter far from the pocket we're about to seal.
-	g.enemies = [{"pos": Vector2(Landgrab.COLS * 0.5, Landgrab.ROWS * 0.5), "vel": Vector2(0, 0)}]
+	g.enemies = [{"pos": Vector2(Mondrian.COLS * 0.5, Mondrian.ROWS * 0.5), "vel": Vector2(0, 0)}]
 
 	# Cut straight down column 2 from the top border to the bottom border,
 	# which seals the strip between the left wall and the cut.
@@ -442,17 +445,17 @@ func _test_landgrab_seals_pocket() -> void:
 	g.drawing = false
 	g.trail.clear()
 	var before := g.claimed_percent
-	for _i in Landgrab.ROWS:
+	for _i in Mondrian.ROWS:
 		g._step_player(Vector2i(0, 1))
 
 	if g.drawing:
-		_fail("landgrab/seal: trail never closed against the far wall")
+		_fail("mondrian/seal: trail never closed against the far wall")
 	if g.claimed_percent <= before:
-		_fail("landgrab/seal: sealing a pocket claimed nothing (%f -> %f)" % [before, g.claimed_percent])
+		_fail("mondrian/seal: sealing a pocket claimed nothing (%f -> %f)" % [before, g.claimed_percent])
 	# The strip left of the cut must now be solid.
-	for r in range(3, Landgrab.ROWS - 3):
-		if g.grid[r][3] != Landgrab.FILLED:
-			_fail("landgrab/seal: pocket cell at 3,%d was left unclaimed" % r)
+	for r in range(3, Mondrian.ROWS - 3):
+		if g.grid[r][3] != Mondrian.FILLED:
+			_fail("mondrian/seal: pocket cell at 3,%d was left unclaimed" % r)
 			break
 	g.queue_free()
 
@@ -664,6 +667,7 @@ func _test_linkup_generator() -> void:
 	_drive(g)
 
 	for lvl in range(1, 13):
+		g.difficulty = ["easy", "normal", "hard"][lvl % 3]
 		g.level = lvl
 		g._start_level()
 
@@ -703,6 +707,7 @@ func _test_linkup_solving() -> void:
 	_drive(g)
 
 	for lvl in [1, 4, 7, 10]:
+		g.difficulty = ["easy", "normal", "hard"][lvl % 3]
 		g.level = lvl
 		g._start_level()
 
@@ -785,4 +790,94 @@ func _test_linkup_editing() -> void:
 			if g.extend(n):
 				_fail("linkup/edit: drew straight through another colour's dot")
 			break
+	g.queue_free()
+
+
+# --- Gridlock -----------------------------------------------------------------
+
+func _test_gridlock_generator() -> void:
+	var g: Gridlock = load("res://gridlock.tscn").instantiate()
+	_drive(g)
+
+	for lvl in range(1, 11):
+		g.level = lvl
+		g._start_level()
+
+		if g.is_solved():
+			_fail("gridlock/gen: level %d was handed out already finished" % lvl)
+		var t: Dictionary = g.vehicles[0]
+		if not t.horiz or t.len != 2 or t.pos.y != Gridlock.EXIT_ROW:
+			_fail("gridlock/gen: level %d red car is not a 2-long car on the exit row" % lvl)
+
+		var seen := {}
+		for v in g.vehicles:
+			for c in g.cells_of(v):
+				if c.x < 0 or c.x >= Gridlock.SIZE or c.y < 0 or c.y >= Gridlock.SIZE:
+					_fail("gridlock/gen: level %d has a vehicle off the board at %d,%d" % [lvl, c.x, c.y])
+					return
+				if seen.has(c):
+					_fail("gridlock/gen: level %d overlaps two vehicles at %d,%d" % [lvl, c.x, c.y])
+					return
+				seen[c] = true
+	g.queue_free()
+
+
+func _test_gridlock_solvable() -> void:
+	# The board was scrambled from the finished position with reversible moves,
+	# so undoing that scramble backwards has to park the red car at the exit.
+	var g: Gridlock = load("res://gridlock.tscn").instantiate()
+	_drive(g)
+
+	for lvl in [1, 3, 6, 9]:
+		g.level = lvl
+		g._start_level()
+		var steps: Array = g.scramble.duplicate()
+		steps.reverse()
+		for step in steps:
+			if not g.move_vehicle(step.v, -step.d):
+				_fail("gridlock/solve: level %d could not undo a scramble move" % lvl)
+				break
+		if not g.is_solved():
+			_fail("gridlock/solve: level %d did not end with the red car at the exit" % lvl)
+		if not g.solved:
+			_fail("gridlock/solve: level %d never reported itself solved" % lvl)
+	g.queue_free()
+
+
+func _test_gridlock_moves() -> void:
+	var g: Gridlock = load("res://gridlock.tscn").instantiate()
+	_drive(g)
+	g.level = 1
+	g._start_level()
+
+	# A vehicle may never move across its own grain.
+	for i in g.vehicles.size():
+		var v: Dictionary = g.vehicles[i]
+		var before: Vector2i = v.pos
+		if v.horiz:
+			# Nudging a horizontal car vertically is not even expressible
+			# through move_vehicle, so check the axis is respected by _drive.
+			g.selected = i
+			g._drive(Vector2i(0, 1))
+			if g.vehicles[i].pos != before and g.vehicles[i].pos.x == before.x:
+				_fail("gridlock/moves: a horizontal vehicle moved vertically")
+				break
+
+	# Nothing may be pushed off the board or through another vehicle.
+	for i in g.vehicles.size():
+		for dir in [-1, 1]:
+			var occ: Dictionary = g.occupancy(i)
+			var v: Dictionary = g.vehicles[i]
+			var delta := Vector2i(dir, 0) if v.horiz else Vector2i(0, dir)
+			var blocked := false
+			for c in g.cells_of(v):
+				var n: Vector2i = c + delta
+				if n.x < 0 or n.x >= Gridlock.SIZE or n.y < 0 or n.y >= Gridlock.SIZE or occ.has(n):
+					blocked = true
+			if blocked and g.can_move(i, dir):
+				_fail("gridlock/moves: vehicle %d claims it can move into something" % i)
+				return
+			if not blocked and not g.can_move(i, dir):
+				_fail("gridlock/moves: vehicle %d refuses a clear move" % i)
+				return
 	g.queue_free()
