@@ -24,7 +24,6 @@ var queued: Array[Vector2i] = []   # buffered turns, so quick taps aren't eaten
 var food := Vector2i.ZERO
 
 var score := 0
-var best := 0
 var dead := false
 var paused := false
 var step_timer := 0.0
@@ -109,7 +108,7 @@ func _step() -> void:
 
 func _die() -> void:
 	dead = true
-	best = max(best, score)
+	Scores.submit_high("snake", score)
 	queue_redraw()
 
 
@@ -189,8 +188,8 @@ func _draw() -> void:
 	Blocks.rule(self, Vector2(ORIGIN.x, 62), COLS * CELL, Blocks.INK, 1.0)
 	Blocks.stat(self, Vector2(ORIGIN.x, 82), "SCORE", str(score), 28)
 	Blocks.stat(self, Vector2(ORIGIN.x + 170, 82), "LENGTH", str(body.size()), 28)
-	if best > 0:
-		Blocks.stat(self, Vector2(ORIGIN.x + 340, 82), "BEST", str(best), 28)
+	if Scores.has("snake"):
+		Blocks.stat(self, Vector2(ORIGIN.x + 340, 82), "BEST", str(int(Scores.get_best("snake"))), 28)
 
 	Blocks.rule(self, Vector2(ORIGIN.x, 686), COLS * CELL, Blocks.INK, 1.0)
 	var cy := 706.0

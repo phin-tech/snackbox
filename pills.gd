@@ -70,6 +70,7 @@ var pending: Array[Vector2i] = []
 var move_dir := 0
 var das_timer := 0.0
 var arr_timer := 0.0
+var recorded := false
 
 
 func _ready() -> void:
@@ -98,6 +99,7 @@ func _start_level() -> void:
 	_place_viruses()
 	chain = 0
 	paused = false
+	recorded = false
 	state = FALLING
 	next_colors = [randi() % 3, randi() % 3]
 	_spawn_pill()
@@ -418,6 +420,9 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- Main loop ----------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	if state == LOST and not recorded:
+		recorded = true
+		Scores.submit_high("pills", score)
 	if paused or state == WON or state == LOST:
 		return
 
@@ -573,10 +578,10 @@ func _draw_panel() -> void:
 		["LEVEL", str(level)],
 		["VIRUSES", str(viruses_left)],
 		["SCORE", str(score)],
-	]:
+	] + ([["BEST", str(int(Scores.get_best("pills")))]] if Scores.has("pills") else []):
 		Blocks.rule(self, Vector2(x, sy - 14), 100, Blocks.INK, 1.0)
-		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 26)
-		sy += 64
+		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 24)
+		sy += 58
 
 	if chain > 1 and state != FALLING:
 		Blocks.tracked(self, Vector2(x, sy + 10), "CHAIN X%d" % chain, 14, Blocks.RED)

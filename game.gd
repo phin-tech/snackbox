@@ -115,6 +115,7 @@ var arr_timer := 0.0
 
 var clearing_rows: Array[int] = []
 var clear_timer := 0.0
+var recorded := false
 
 
 func _ready() -> void:
@@ -162,6 +163,7 @@ func new_game() -> void:
 	clearing_rows.clear()
 	move_dir = 0
 	piece_type = -1
+	recorded = false
 	_spawn_piece()
 	queue_redraw()
 
@@ -409,8 +411,33 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- Main loop ----------------------------------------------------------------
 
+func _record() -> void:
+	# Sprint is a race, so its record is the lowest time - and only when the
+	# goal was actually reached, not when the run topped out.
+	recorded = true
+	if mode == "sprint":
+		if finished:
+			Scores.submit_low("blockfall.sprint", elapsed)
+	else:
+		Scores.submit_high("blockfall." + mode, score)
+
+
+func _best_row() -> Array:
+	if mode == "sprint":
+		if not Scores.has("blockfall.sprint"):
+			return []
+		return ["BEST TIME", Blocks.format_time(Scores.get_best("blockfall.sprint"))]
+	if not Scores.has("blockfall." + mode):
+		return []
+	return ["BEST", str(int(Scores.get_best("blockfall." + mode)))]
+
+
 func _process(delta: float) -> void:
-	if _stopped() or paused:
+	if _stopped():
+		if not recorded:
+			_record()
+		return
+	if paused:
 		return
 
 	elapsed += delta
@@ -553,33 +580,38 @@ func _draw_panel() -> void:
 		Blocks.panel(self, r)
 		_draw_mini(next_queue[i], r)
 
-	var sy := 492.0
+	var sy := 468.0
 	for entry in _stat_rows():
 		Blocks.rule(self, Vector2(x, sy - 14), 100, Blocks.INK, 1.0)
-		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 26)
-		sy += 62
+		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 24)
+		sy += 56
 
 
 func _stat_rows() -> Array:
+	var rows := []
 	match mode:
 		"sprint":
-			return [
+			rows = [
 				["TIME", Blocks.format_time(elapsed)],
 				["LINES LEFT", str(max(SPRINT_GOAL - lines, 0))],
 				["LEVEL", str(level)],
 			]
 		"ultra":
-			return [
+			rows = [
 				["TIME LEFT", Blocks.format_time(ULTRA_SECONDS - elapsed)],
 				["SCORE", str(score)],
 				["LINES", str(lines)],
 			]
 		_:
-			return [
+			rows = [
 				["SCORE", str(score)],
 				["LEVEL", str(level)],
 				["LINES", str(lines)],
 			]
+	var best := _best_row()
+	if not best.is_empty():
+		rows.append(best)
+	return rows
 
 
 func _draw_controls() -> void:

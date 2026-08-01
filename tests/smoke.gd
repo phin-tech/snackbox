@@ -16,6 +16,14 @@ var failures: Array[String] = []
 func _ready() -> void:
 	seed(20260731)
 
+	# The games persist bests on death, so point the store at a scratch file -
+	# a test run must never overwrite the player's real scores.
+	Scores.path = "user://test_scores.cfg"
+	Scores.reload()
+	Scores.clear()
+
+	_test_scores()
+
 	for mode in ["marathon", "sprint", "ultra"]:
 		_run_blocks(mode)
 	_run_pills()
@@ -29,6 +37,8 @@ func _ready() -> void:
 	_run_doubles()
 	_test_doubles_merges()
 
+	_cleanup_scores()
+
 	if failures.is_empty():
 		print("OK: all smoke tests passed")
 		get_tree().quit(0)
@@ -37,6 +47,52 @@ func _ready() -> void:
 			print("FAIL: ", f)
 		print("FAILED: %d check(s)" % failures.size())
 		get_tree().quit(1)
+
+
+func _cleanup_scores() -> void:
+	Scores.clear()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Scores.path))
+
+
+func _test_scores() -> void:
+	Scores.clear()
+
+	if Scores.has("nope"):
+		_fail("scores: an unset key reported as present")
+	if Scores.get_best("nope", 5.0) != 5.0:
+		_fail("scores: fallback ignored for an unset key")
+
+	# Higher wins for scores.
+	if not Scores.submit_high("k", 100.0):
+		_fail("scores: first submission was not treated as a best")
+	if Scores.submit_high("k", 50.0):
+		_fail("scores: a lower score was accepted as a new best")
+	if Scores.get_best("k") != 100.0:
+		_fail("scores: a lower score overwrote the best (%f)" % Scores.get_best("k"))
+	if not Scores.submit_high("k", 150.0):
+		_fail("scores: a higher score was not accepted")
+	if Scores.get_best("k") != 150.0:
+		_fail("scores: best did not update to the higher score")
+
+	# Lower wins for times.
+	if not Scores.submit_low("t", 30.0):
+		_fail("scores: first time was not treated as a best")
+	if Scores.submit_low("t", 45.0):
+		_fail("scores: a slower time was accepted as a new best")
+	if not Scores.submit_low("t", 20.0):
+		_fail("scores: a faster time was not accepted")
+	if Scores.get_best("t") != 20.0:
+		_fail("scores: best time did not update (%f)" % Scores.get_best("t"))
+
+	# And it has to survive a round trip through the file.
+	Scores.reload()
+	if Scores.get_best("k") != 150.0 or Scores.get_best("t") != 20.0:
+		_fail("scores: values did not persist across a reload (k=%f t=%f)"
+			% [Scores.get_best("k"), Scores.get_best("t")])
+
+	Scores.clear()
+	if Scores.has("k"):
+		_fail("scores: clear left values behind")
 
 
 func _fail(msg: String) -> void:

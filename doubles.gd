@@ -30,7 +30,6 @@ const DARK_LABEL := [8, 16, 2048]
 
 var grid := []                # grid[row][col] -> 0 empty, else tile value
 var score := 0
-var best := 0
 var won := false              # hit 2048 at least once; play carries on
 var dead := false
 var spawned := Vector2i(-1, -1)
@@ -144,7 +143,7 @@ func _move(dir: Vector2i) -> void:
 	_spawn()
 	if not _has_moves():
 		dead = true
-		best = max(best, score)
+		Scores.submit_high("doubles", score)
 	queue_redraw()
 
 
@@ -223,8 +222,8 @@ func _draw() -> void:
 	Blocks.text(self, Vector2(ORIGIN.x, 108), "DOUBLES", 34, Blocks.INK)
 	Blocks.rule(self, Vector2(ORIGIN.x, 122), side, Blocks.RED, 4.0)
 	Blocks.stat(self, Vector2(ORIGIN.x, 152), "SCORE", str(score), 26)
-	if best > 0:
-		Blocks.stat(self, Vector2(ORIGIN.x + 180, 152), "BEST", str(best), 26)
+	if Scores.has("doubles"):
+		Blocks.stat(self, Vector2(ORIGIN.x + 180, 152), "BEST", str(int(Scores.get_best("doubles"))), 26)
 	if won:
 		Blocks.tracked(self, Vector2(ORIGIN.x + 340, 178), "2048 REACHED", 12, Blocks.RED)
 

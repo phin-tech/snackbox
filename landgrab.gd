@@ -7,10 +7,10 @@ extends Node2D
 
 signal exit_to_menu
 
-const COLS := 48
-const ROWS := 58
-const CELL := 10
-const ORIGIN := Vector2(60, 66)
+const COLS := 40
+const ROWS := 48
+const CELL := 12
+const ORIGIN := Vector2(60, 78)
 
 const EMPTY := 0
 const FILLED := 1
@@ -27,7 +27,6 @@ const DEATH_PAUSE := 1.1
 const START_LIVES := 3
 
 const COLOR_FILLED := Color("2d6fc0")
-const COLOR_FILLED_EDGE := Color("5b9be8")
 const COLOR_TRAIL := Color("ff3b30")
 const COLOR_PLAYER := Color("efede8")
 const COLOR_ENEMY := Color("efede8")
@@ -48,6 +47,7 @@ var death_timer := 0.0
 
 var enemies := []                 # [{pos: Vector2, vel: Vector2}]
 var flash := 0.0
+var recorded := false
 
 
 func _ready() -> void:
@@ -58,6 +58,7 @@ func new_game() -> void:
 	level = 1
 	lives = START_LIVES
 	score = 0
+	recorded = false
 	_start_level()
 
 
@@ -268,6 +269,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	flash += delta
 
+	if state == LOST and not recorded:
+		recorded = true
+		Scores.submit_high("landgrab", score)
+
 	if state == WON or state == LOST:
 		queue_redraw()
 		return
@@ -308,20 +313,15 @@ func _draw() -> void:
 		for c in COLS:
 			match grid[r][c]:
 				FILLED:
-					# Edge cells get a lighter tone so claimed regions read clearly.
-					var edge: bool = r == 0 or c == 0 or r == ROWS - 1 or c == COLS - 1 \
-						or grid[max(r - 1, 0)][c] != FILLED or grid[min(r + 1, ROWS - 1)][c] != FILLED \
-						or grid[r][max(c - 1, 0)] != FILLED or grid[r][min(c + 1, COLS - 1)] != FILLED
-					draw_rect(_cell_rect(c, r), COLOR_FILLED_EDGE if edge else COLOR_FILLED)
+					Blocks.block(self, _cell_rect(c, r), COLOR_FILLED)
 				TRAIL:
-					draw_rect(_cell_rect(c, r), COLOR_TRAIL)
+					Blocks.block(self, _cell_rect(c, r), COLOR_TRAIL)
 
 	# Player
 	if state == PLAYING or state == DYING:
 		var blink := state != DYING or fmod(flash, 0.2) < 0.1
 		if blink:
-			var pr := _cell_rect(player.x, player.y).grow(1)
-			draw_rect(pr, COLOR_PLAYER)
+			Blocks.block(self, _cell_rect(player.x, player.y), COLOR_PLAYER)
 
 	# Drifters
 	for e in enemies:
@@ -346,9 +346,11 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(ORIGIN.x, 26), "LEVEL", str(level), 22)
 	Blocks.stat(self, Vector2(ORIGIN.x + 110, 26), "LIVES", str(lives), 22)
 	Blocks.stat(self, Vector2(ORIGIN.x + 220, 26), "SCORE", str(score), 22)
-	Blocks.tracked(self, Vector2(ORIGIN.x + 350, 26), "CLAIMED", 11, Blocks.INK_MID)
+	if Scores.has("landgrab"):
+		Blocks.stat(self, Vector2(ORIGIN.x + 330, 26), "BEST", str(int(Scores.get_best("landgrab"))), 22)
+	Blocks.tracked(self, Vector2(ORIGIN.x + 430, 26), "CLAIMED", 11, Blocks.INK_MID)
 	var pct_color: Color = Blocks.RED if claimed_percent >= TARGET_PERCENT else Blocks.INK
-	Blocks.text(self, Vector2(ORIGIN.x + 350, 52), "%d%% / %d%%" % [int(claimed_percent), int(TARGET_PERCENT)], 22, pct_color)
+	Blocks.text(self, Vector2(ORIGIN.x + 430, 52), "%d%%" % int(claimed_percent), 22, pct_color)
 
 	# Progress bar under the board
 	var bar := Rect2(ORIGIN.x, ORIGIN.y + ROWS * CELL + 14, COLS * CELL, 8)
