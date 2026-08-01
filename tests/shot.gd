@@ -81,6 +81,8 @@ func _demo(node: Node2D) -> void:
 		_demo_pyramid(node)
 	elif node is Decant:
 		_demo_decant(node)
+	elif node is Fence:
+		_demo_fence(node)
 	elif node is Linkup:
 		_demo_linkup(node)
 	elif node is Gridlock:
@@ -221,6 +223,22 @@ func _demo_decant(g: Decant) -> void:
 				if g.can_pour(from, to) and not g.tubes[to].is_empty():
 					g.pour(from, to)
 					break
+
+
+func _demo_fence(g: Fence) -> void:
+	# Draw most of a loop, so the shot shows a fence being laid rather than a
+	# finished one.
+	g.level = 3
+	g._start_level()
+	var corners: Array[Vector2i] = [
+		Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(6, 3),
+		Vector2i(6, 4), Vector2i(6, 5), Vector2i(7, 5), Vector2i(7, 6), Vector2i(7, 7),
+		Vector2i(6, 7), Vector2i(5, 7), Vector2i(4, 7), Vector2i(3, 7), Vector2i(2, 7),
+		Vector2i(2, 6), Vector2i(2, 5),
+	]
+	g.start_at(corners[0])
+	for i in range(1, corners.size()):
+		g.step_to(corners[i])
 
 
 func _demo_doubles(g: Doubles) -> void:

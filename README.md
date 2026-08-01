@@ -78,6 +78,22 @@ three — and a clue carrying a number fixes its area too.
 
 Drag out a rectangle, click one again to take it back · `N` clear · `R` new board
 
+## Fence
+
+An original one. You get a fixed length of fence — draw a **closed loop** along
+the grid lines, and everything inside it is yours, the good cells and the bad
+ones alike.
+
+<img src="docs/fence.png" alt="Fence" width="300">
+
+That single rule is the whole game: a tight loop is cheap but misses things, a
+sprawling one reaches everything and runs out of fence. Every level has a par,
+which is the shape the board was built around — so the target is known to be
+reachable rather than guessed at. Beating it is allowed.
+
+Drag along the grid lines and come back to where you started · `N` clear ·
+`R` new board
+
 ## Pyramid
 
 Solitaire. Clear the pyramid by pairing cards that add to 13 — ace is 1, so a

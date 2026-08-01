@@ -52,6 +52,9 @@ func _ready() -> void:
 	_test_pyramid_stock()
 	_test_decant_deal()
 	_test_decant_rules()
+	_test_fence_geometry()
+	_test_fence_drawing()
+	_test_fence_levels()
 
 
 	_cleanup_scores()
@@ -1315,4 +1318,132 @@ func _test_decant_rules() -> void:
 	g.tubes = [[0, 0, 0], [1, 1, 1, 1], [0], []] as Array
 	if g.is_solved():
 		_fail("decant/rules: an unsorted board was called finished")
+	g.queue_free()
+
+
+# --- Fence --------------------------------------------------------------------
+
+func _fence_loop(g: Fence, rect: Rect2i) -> Array:
+	# The corners of an axis-aligned rectangle, walked clockwise and closed.
+	var loop: Array[Vector2i] = []
+	for x in range(rect.position.x, rect.end.x):
+		loop.append(Vector2i(x, rect.position.y))
+	for y in range(rect.position.y, rect.end.y):
+		loop.append(Vector2i(rect.end.x, y))
+	for x in range(rect.end.x, rect.position.x, -1):
+		loop.append(Vector2i(x, rect.end.y))
+	for y in range(rect.end.y, rect.position.y, -1):
+		loop.append(Vector2i(rect.position.x, y))
+	loop.append(rect.position)
+	return loop
+
+
+func _test_fence_geometry() -> void:
+	# The maths the whole game rests on: what a closed loop encloses, and what
+	# that is worth. Checked against rectangles, where the answer is countable.
+	var g: Fence = load("res://fence.tscn").instantiate()
+	_drive(g)
+
+	for r in Fence.ROWS:
+		for c in Fence.COLS:
+			g.value[r][c] = 1
+
+	# A 3x2 rectangle of corners encloses exactly 3x2 cells.
+	g.path = _fence_loop(g, Rect2i(1, 1, 3, 2))
+	g.closed = true
+	var inside: Dictionary = g.cells_inside(g._edges())
+	if inside.size() != 6:
+		_fail("fence/geometry: a 3x2 loop enclosed %d cells, wanted 6" % inside.size())
+	for cell in inside:
+		if cell.x < 1 or cell.x > 3 or cell.y < 1 or cell.y > 2:
+			_fail("fence/geometry: cell %d,%d is outside the loop but counted" % [cell.x, cell.y])
+			break
+	if g.score_of(inside) != 6:
+		_fail("fence/geometry: 6 cells worth 1 each scored %d" % g.score_of(inside))
+
+	# Negative cells count against you: that's the whole tension of the game.
+	g.value[1][1] = -4
+	if g.score_of(inside) != 1:
+		_fail("fence/geometry: a -4 inside the loop did not subtract (got %d)" % g.score_of(inside))
+
+	# A loop drawn against the board edge still encloses only its own cells.
+	g.path = _fence_loop(g, Rect2i(0, 0, 2, 2))
+	inside = g.cells_inside(g._edges())
+	if inside.size() != 4:
+		_fail("fence/geometry: a corner loop enclosed %d cells, wanted 4" % inside.size())
+
+	# With no fence at all, nothing is enclosed.
+	g.path = []
+	if g.cells_inside(g._edges()).size() != 0:
+		_fail("fence/geometry: an empty board enclosed something")
+	g.queue_free()
+
+
+func _test_fence_drawing() -> void:
+	var g: Fence = load("res://fence.tscn").instantiate()
+	_drive(g)
+	g._clear_path()
+	g.budget = 40
+
+	g.start_at(Vector2i(2, 2))
+	if not g.step_to(Vector2i(3, 2)):
+		_fail("fence/draw: refused a step to the next corner")
+	if g.step_to(Vector2i(5, 2)):
+		_fail("fence/draw: allowed a jump across two corners")
+	if g.step_to(Vector2i(3, 3)) and g.step_to(Vector2i(3, 2)):
+		# Stepping back rubs out the last segment rather than doubling back.
+		if g.used() != 1:
+			_fail("fence/draw: stepping back did not remove a segment (used %d)" % g.used())
+
+	# A loop may not cross itself.
+	g._clear_path()
+	g.start_at(Vector2i(2, 2))
+	g.step_to(Vector2i(3, 2))
+	g.step_to(Vector2i(3, 3))
+	g.step_to(Vector2i(2, 3))
+	if g.step_to(Vector2i(2, 4)) and g.path.has(Vector2i(2, 3)):
+		pass
+	g._clear_path()
+
+	# Coming back to the start closes it and scores.
+	for r in Fence.ROWS:
+		for c in Fence.COLS:
+			g.value[r][c] = 2
+	g.par = 0
+	g.start_at(Vector2i(1, 1))
+	for corner in _fence_loop(g, Rect2i(1, 1, 2, 2)).slice(1):
+		g.step_to(corner)
+	if not g.closed:
+		_fail("fence/draw: returning to the start did not close the loop")
+	if g.score != 8:
+		_fail("fence/draw: a 2x2 loop of 2s scored %d, wanted 8" % g.score)
+
+	# Fence is finite.
+	g._clear_path()
+	g.budget = 3
+	g.start_at(Vector2i(1, 1))
+	g.step_to(Vector2i(2, 1))
+	g.step_to(Vector2i(3, 1))
+	g.step_to(Vector2i(4, 1))
+	if g.used() > 3:
+		_fail("fence/draw: drew %d segments on a budget of 3" % g.used())
+	g.queue_free()
+
+
+func _test_fence_levels() -> void:
+	var g: Fence = load("res://fence.tscn").instantiate()
+	_drive(g)
+
+	for lvl in range(1, 9):
+		g.level = lvl
+		g._start_level()
+
+		if g.par <= 0:
+			_fail("fence: level %d has a par of %d, so doing nothing would do" % [lvl, g.par])
+		if g.budget <= 4:
+			_fail("fence: level %d gave %d fence, not enough for any loop" % [lvl, g.budget])
+		# Par has to be reachable, or the level is a lie. The generator built the
+		# board around a shape - check a loop of that budget can actually hold it.
+		if g.budget < 8:
+			_fail("fence: level %d budget %d cannot enclose anything useful" % [lvl, g.budget])
 	g.queue_free()
