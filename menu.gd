@@ -74,33 +74,37 @@ func _unhandled_input(event: InputEvent) -> void:
 func _draw() -> void:
 	var w := Main.DESIGN_SIZE.x
 
-	Blocks.text_centered(self, w * 0.5, 120, "CASUAL GAMES", 20, Blocks.TEXT_DIM)
-	Blocks.text_centered(self, w * 0.5, 176, "SNACKBOX", 52, Blocks.TEXT)
-	draw_rect(Rect2(w * 0.5 - 90, 196, 180, 3), Blocks.ACCENT)
+	# Masthead: small tracked caps over a large flush-left wordmark, then a
+	# heavy red rule. Everything hangs off the same left margin.
+	Blocks.tracked(self, Vector2(34, 96), "CASUAL GAMES", 12, Blocks.INK_MID)
+	Blocks.text(self, Vector2(32, 156), "SNACKBOX", 54, Blocks.INK)
+	Blocks.rule(self, Vector2(32, 176), w - 64, Blocks.RED, 5.0)
 
-	# Compact list - the description lives in a fixed footer instead of inline,
-	# so the rows don't shift around as the selection moves.
-	var y := 250.0
+	var y := 232.0
+	var number := 0
 	for i in ENTRIES.size():
 		var e: Dictionary = ENTRIES[i]
 		if e.has("header"):
-			y += 8
-			Blocks.text(self, Vector2(120, y), e.header, 12, Blocks.TEXT_FAINT)
+			y += 12
+			Blocks.rule(self, Vector2(32, y - 14), w - 64, Blocks.INK, 1.0)
+			Blocks.tracked(self, Vector2(32, y + 2), e.header, 11, Blocks.INK_FAINT)
 			y += 22
 			continue
 
+		number += 1
 		var selected := i == index
-		var row := Rect2(104, y - 20, w - 208, 34)
 		if selected:
-			draw_rect(row, Color(0, 0.9, 1, 0.10))
-			draw_rect(Rect2(row.position, Vector2(3, row.size.y)), Blocks.ACCENT)
+			draw_rect(Rect2(32, y - 19, w - 64, 28), Blocks.INK)
 
-		var label_color: Color = Blocks.TEXT if selected else Blocks.TEXT_DIM
-		Blocks.text(self, Vector2(124, y), e.label, 20, label_color)
-		y += 38
+		var num_color: Color = Blocks.PAPER if selected else Blocks.RED
+		var label_color: Color = Blocks.PAPER if selected else Blocks.INK
+		Blocks.tracked(self, Vector2(40, y), "%02d" % number, 12, num_color)
+		Blocks.text(self, Vector2(80, y), e.label, 20, label_color)
+		y += 33
 
+	Blocks.rule(self, Vector2(32, 648), w - 64, Blocks.INK, 1.0)
 	var current: Dictionary = ENTRIES[index]
 	if current.has("desc"):
-		Blocks.text_centered(self, w * 0.5, 664, current.desc, 14, Blocks.TEXT_DIM)
-	Blocks.text_centered(self, w * 0.5, 700, "↑ ↓  choose        ENTER  play", 13, Blocks.TEXT_FAINT)
-	Blocks.text_centered(self, w * 0.5, 722, "ESC returns here from any game", 13, Blocks.TEXT_FAINT)
+		Blocks.text(self, Vector2(32, 676), current.desc, 14, Blocks.INK_MID)
+	Blocks.tracked(self, Vector2(32, 712), "UP DOWN  CHOOSE", 11, Blocks.INK_FAINT)
+	Blocks.tracked(self, Vector2(32, 730), "ENTER  PLAY        ESC  RETURNS HERE", 11, Blocks.INK_FAINT)

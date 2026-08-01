@@ -26,11 +26,11 @@ const MOVE_INTERVAL := 0.028      # how fast the player walks
 const DEATH_PAUSE := 1.1
 const START_LIVES := 3
 
-const COLOR_FILLED := Color("2f6bff")
-const COLOR_FILLED_EDGE := Color("5b8cff")
-const COLOR_TRAIL := Color("00e5ff")
-const COLOR_PLAYER := Color("f2f5ff")
-const COLOR_ENEMY := Color("ff3b56")
+const COLOR_FILLED := Color("2d6fc0")
+const COLOR_FILLED_EDGE := Color("5b9be8")
+const COLOR_TRAIL := Color("ff3b30")
+const COLOR_PLAYER := Color("efede8")
+const COLOR_ENEMY := Color("efede8")
 
 var grid := []
 var state := PLAYING
@@ -327,8 +327,8 @@ func _draw() -> void:
 	for e in enemies:
 		var center: Vector2 = ORIGIN + (e.pos + Vector2(0.5, 0.5)) * CELL
 		draw_circle(center, CELL * 1.3, COLOR_ENEMY)
-		draw_circle(center, CELL * 0.55, Color.WHITE)
-		draw_circle(center, CELL * 0.28, Color(0.05, 0.05, 0.1))
+		draw_circle(center, CELL * 0.55, Blocks.PAPER)
+		draw_circle(center, CELL * 0.28, Blocks.RED)
 
 	Blocks.outline(self, board.grow(2))
 	_draw_hud()
@@ -343,30 +343,29 @@ func _draw() -> void:
 func _draw_hud() -> void:
 	var w := Main.DESIGN_SIZE.x
 
-	Blocks.text(self, Vector2(ORIGIN.x, 30), "LEVEL %d" % level, 15, Blocks.TEXT_DIM)
-	Blocks.text(self, Vector2(ORIGIN.x + 110, 30), "LIVES %d" % lives, 15, Blocks.TEXT_DIM)
-	Blocks.text(self, Vector2(ORIGIN.x + 220, 30), "SCORE %d" % score, 15, Blocks.TEXT_DIM)
-
-	var pct_text := "%d%% / %d%%" % [int(claimed_percent), int(TARGET_PERCENT)]
-	var pct_color: Color = Blocks.ACCENT if claimed_percent >= TARGET_PERCENT else Blocks.TEXT
-	Blocks.text(self, Vector2(ORIGIN.x + 350, 30), pct_text, 15, pct_color)
+	Blocks.stat(self, Vector2(ORIGIN.x, 26), "LEVEL", str(level), 22)
+	Blocks.stat(self, Vector2(ORIGIN.x + 110, 26), "LIVES", str(lives), 22)
+	Blocks.stat(self, Vector2(ORIGIN.x + 220, 26), "SCORE", str(score), 22)
+	Blocks.tracked(self, Vector2(ORIGIN.x + 350, 26), "CLAIMED", 11, Blocks.INK_MID)
+	var pct_color: Color = Blocks.RED if claimed_percent >= TARGET_PERCENT else Blocks.INK
+	Blocks.text(self, Vector2(ORIGIN.x + 350, 52), "%d%% / %d%%" % [int(claimed_percent), int(TARGET_PERCENT)], 22, pct_color)
 
 	# Progress bar under the board
-	var bar := Rect2(ORIGIN.x, ORIGIN.y + ROWS * CELL + 12, COLS * CELL, 10)
-	draw_rect(bar, Blocks.BG)
+	var bar := Rect2(ORIGIN.x, ORIGIN.y + ROWS * CELL + 14, COLS * CELL, 8)
+	draw_rect(bar, Blocks.PAPER_SUNK)
 	var frac: float = clampf(claimed_percent / 100.0, 0.0, 1.0)
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), COLOR_FILLED_EDGE)
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), Blocks.INK)
 	var target_x := bar.position.x + bar.size.x * (TARGET_PERCENT / 100.0)
-	draw_rect(Rect2(Vector2(target_x - 1, bar.position.y - 3), Vector2(2, bar.size.y + 6)), Blocks.ACCENT)
-	Blocks.outline(self, bar, Blocks.FRAME, 1.0)
+	draw_rect(Rect2(Vector2(target_x - 1, bar.position.y - 4), Vector2(2, bar.size.y + 8)), Blocks.RED)
 
 
 func _draw_controls() -> void:
-	var cy := 700.0
+	Blocks.rule(self, Vector2(ORIGIN.x, 686), COLS * CELL, Blocks.INK, 1.0)
+	var cy := 706.0
 	for line in [
-		"← → ↑ ↓  move        hold a direction to cut into open space",
-		"Get back to solid ground to seal the area off.",
-		"R  restart        ESC  menu",
+		"ARROWS  MOVE        HOLD A DIRECTION TO CUT INTO OPEN SPACE",
+		"GET BACK TO SOLID GROUND TO SEAL THE AREA OFF",
+		"R  RESTART        ESC  MENU",
 	]:
-		Blocks.text(self, Vector2(ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
-		cy += 18
+		Blocks.tracked(self, Vector2(ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
+		cy += 16

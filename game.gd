@@ -36,13 +36,13 @@ const PIECE_SPAWN := [
 ]
 
 const PIECE_COLOR := [
-	Color("00e5ff"),  # I cyan
-	Color("ffd400"),  # O yellow
-	Color("c14bff"),  # T purple
-	Color("2ee65a"),  # S green
-	Color("ff3b56"),  # Z red
-	Color("2f6bff"),  # J blue
-	Color("ff8a1e"),  # L orange
+	Color("3d8be0"),  # I blue
+	Color("f2b705"),  # O yellow
+	Color("8f5fc0"),  # T purple
+	Color("46ac5c"),  # S green
+	Color("ff3b30"),  # Z red
+	Color("efede8"),  # J bone
+	Color("f0822f"),  # L orange
 ]
 
 # SRS wall kicks. Keys are from_rotation * 10 + to_rotation. Offsets are already
@@ -540,24 +540,24 @@ func _draw_panel() -> void:
 	var x := PANEL_X
 	var box := Vector2(4 * MINI + 14, 4 * MINI + 14)
 
-	Blocks.text(self, Vector2(x, 52), "HOLD", 15, Blocks.TEXT_DIM)
+	Blocks.tracked(self, Vector2(x, 50), "HOLD", 11, Blocks.INK_MID)
 	var hold_rect := Rect2(Vector2(x, 62), box)
 	Blocks.panel(self, hold_rect)
 	if hold_type != -1:
 		_draw_mini(hold_type, hold_rect, 0.45 if hold_used else 1.0)
 
-	var ny := hold_rect.end.y + 38
-	Blocks.text(self, Vector2(x, ny - 10), "NEXT", 15, Blocks.TEXT_DIM)
+	var ny := hold_rect.end.y + 40
+	Blocks.tracked(self, Vector2(x, ny - 14), "NEXT", 11, Blocks.INK_MID)
 	for i in next_queue.size():
 		var r := Rect2(Vector2(x, ny + i * (box.y + 8)), box)
 		Blocks.panel(self, r)
 		_draw_mini(next_queue[i], r)
 
-	var sy := 490.0
+	var sy := 492.0
 	for entry in _stat_rows():
-		Blocks.text(self, Vector2(x, sy), entry[0], 14, Blocks.TEXT_DIM)
-		Blocks.text(self, Vector2(x, sy + 26), entry[1], 24, Blocks.TEXT)
-		sy += 56
+		Blocks.rule(self, Vector2(x, sy - 14), 100, Blocks.INK, 1.0)
+		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 26)
+		sy += 62
 
 
 func _stat_rows() -> Array:
@@ -583,14 +583,15 @@ func _stat_rows() -> Array:
 
 
 func _draw_controls() -> void:
-	var cy := 700.0
+	Blocks.rule(self, Vector2(BOARD_ORIGIN.x, 686), 544, Blocks.INK, 1.0)
+	var cy := 706.0
 	for line in [
-		"← →  move        ↓  soft drop        SPACE  hard drop",
-		"↑ / X  rotate cw        Z  rotate ccw        C  hold",
-		"P  pause        R  restart        ESC  menu",
+		"LEFT RIGHT  MOVE        DOWN  SOFT DROP        SPACE  HARD DROP",
+		"UP / X  ROTATE CW        Z  ROTATE CCW        C  HOLD",
+		"P  PAUSE        R  RESTART        ESC  MENU",
 	]:
-		Blocks.text(self, Vector2(BOARD_ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
-		cy += 18
+		Blocks.tracked(self, Vector2(BOARD_ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
+		cy += 16
 
 
 func _draw_mini(type: int, box: Rect2, alpha := 1.0) -> void:

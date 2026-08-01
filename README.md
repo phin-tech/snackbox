@@ -3,20 +3,11 @@
 A small collection of casual games built in Godot 4. GDScript only, no external
 assets — every board, piece, virus and panel is drawn procedurally.
 
-<p align="center">
-  <img src="docs/menu.png" alt="Snackbox menu" width="240">
-  <img src="docs/marathon.png" alt="Blockfall" width="240">
-  <img src="docs/pills.png" alt="Pill Doctor" width="240">
-</p>
-<p align="center">
-  <img src="docs/landgrab.png" alt="Landgrab" width="240">
-  <img src="docs/snake.png" alt="Snake" width="240">
-  <img src="docs/doubles.png" alt="Doubles" width="240">
-</p>
+Screenshots below are generated, not captured — `task shots` plays each game
+with a seeded set of moves and saves the rendered frame, so they always show
+real boards and never drift out of date.
 
-Screenshots are generated, not captured — `task shots` plays each game with a
-seeded set of moves and saves the rendered frame, so they always show real
-boards and never drift out of date.
+<img src="docs/menu.png" alt="Snackbox menu" width="300">
 
 ## Running
 
@@ -48,6 +39,8 @@ hold, ghost piece, lock delay with move resets, and DAS/ARR repeat.
 | Sprint | Clear 40 lines as fast as possible. |
 | Ultra | Score as much as you can in 2 minutes. |
 
+<img src="docs/marathon.png" alt="Blockfall" width="300">
+
 Controls: `← →` move, `↓` soft drop, `Space` hard drop, `↑`/`X` rotate cw,
 `Z` rotate ccw, `C` hold, `P` pause, `R` restart, `Esc` menu.
 
@@ -58,6 +51,8 @@ them out. Clearing a match drops whatever was resting on it, which can set off
 chains. Clear every virus to advance; each level adds viruses and stacks them
 higher.
 
+<img src="docs/pills.png" alt="Pill Doctor" width="300">
+
 Controls: `← →` move, `↓` soft drop, `Space` hard drop, `↑`/`X` rotate cw,
 `Z` rotate ccw, `P` pause, `R` restart, `Esc` menu.
 
@@ -65,12 +60,16 @@ Controls: `← →` move, `↓` soft drop, `Space` hard drop, `↑`/`X` rotate c
 
 Eat, grow, don't run into the walls or yourself. Speeds up as you get longer.
 
+<img src="docs/snake.png" alt="Snake" width="300">
+
 Controls: `← → ↑ ↓` or `WASD` turn, `P` pause, `R` restart, `Esc` menu.
 
 ### Doubles
 
 Slide the whole board one way; equal tiles fuse. Each tile only fuses once per
 move. Reach 2048, then keep going until the board locks up.
+
+<img src="docs/doubles.png" alt="Doubles" width="300">
 
 Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
 
@@ -81,7 +80,18 @@ to solid ground to seal the cut. Any pocket the drifters aren't in becomes
 yours. Claim 75% to clear the level. Getting clipped while exposed — on your
 trail or at its tip — costs a life.
 
+<img src="docs/landgrab.png" alt="Landgrab" width="300">
+
 Controls: `← → ↑ ↓` move, `R` restart, `Esc` menu.
+
+## Look
+
+Flat colour, no bevels or gradients, a strict left margin, hairline rules, and
+uppercase labels set small and letter-spaced above large figures — the
+International Typographic ("Swiss modern") manner, on a dark ground with a
+single red accent. The palette lives in `blocks.gd`; the games reference it by
+name rather than hard-coding colours, so retheming is one file plus each game's
+handful of functional colours.
 
 ## Layout
 

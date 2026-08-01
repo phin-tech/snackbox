@@ -21,10 +21,12 @@ const UP := Vector2i(0, -1)
 const DOWN := Vector2i(0, 1)
 
 const TILE_COLORS := {
-	2: Color("3a4260"), 4: Color("46527d"), 8: Color("ff8a1e"), 16: Color("ff6f2c"),
-	32: Color("ff5a45"), 64: Color("ff3b56"), 128: Color("ffd400"), 256: Color("ffc400"),
-	512: Color("2ee65a"), 1024: Color("00e5ff"), 2048: Color("c14bff"),
+	2: Color("2a2c31"), 4: Color("3a3d44"), 8: Color("f2b705"), 16: Color("f0822f"),
+	32: Color("ff3b30"), 64: Color("d42b22"), 128: Color("3d8be0"), 256: Color("2a6fb8"),
+	512: Color("46ac5c"), 1024: Color("8f5fc0"), 2048: Color("efede8"),
 }
+# Warm and bone tiles need dark figures; everything else takes light ones.
+const DARK_LABEL := [8, 16, 2048]
 
 var grid := []                # grid[row][col] -> 0 empty, else tile value
 var score := 0
@@ -210,25 +212,27 @@ func _draw() -> void:
 				size = 30
 			elif v >= 128:
 				size = 36
-			var text_col: Color = Blocks.TEXT if v > 4 else Blocks.TEXT_DIM
+			# Warm and bone tiles need dark figures; the rest take light ones.
+			var text_col: Color = Blocks.PAPER if DARK_LABEL.has(v) else Blocks.INK
 			var dims := Blocks.font().get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
 			draw_string(Blocks.font(), rect.position + Vector2((rect.size.x - dims.x) * 0.5, rect.size.y * 0.5 + size * 0.35),
 				label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, text_col)
 
 	Blocks.outline(self, board.grow(2))
 
-	Blocks.text(self, Vector2(ORIGIN.x, 108), "SCORE", 14, Blocks.TEXT_DIM)
-	Blocks.text(self, Vector2(ORIGIN.x, 140), str(score), 30, Blocks.TEXT)
+	Blocks.text(self, Vector2(ORIGIN.x, 108), "DOUBLES", 34, Blocks.INK)
+	Blocks.rule(self, Vector2(ORIGIN.x, 122), side, Blocks.RED, 4.0)
+	Blocks.stat(self, Vector2(ORIGIN.x, 152), "SCORE", str(score), 26)
 	if best > 0:
-		Blocks.text(self, Vector2(ORIGIN.x + 200, 110), "BEST", 14, Blocks.TEXT_DIM)
-		Blocks.text(self, Vector2(ORIGIN.x + 200, 140), str(best), 30, Blocks.TEXT)
+		Blocks.stat(self, Vector2(ORIGIN.x + 180, 152), "BEST", str(best), 26)
 	if won:
-		Blocks.text(self, Vector2(ORIGIN.x + 360, 140), "2048!", 24, Blocks.ACCENT)
+		Blocks.tracked(self, Vector2(ORIGIN.x + 340, 178), "2048 REACHED", 12, Blocks.RED)
 
-	var cy := 700.0
-	for line in ["← → ↑ ↓ or WASD  slide everything one way", "R  restart        ESC  menu"]:
-		Blocks.text(self, Vector2(ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
-		cy += 18
+	Blocks.rule(self, Vector2(ORIGIN.x, 686), side, Blocks.INK, 1.0)
+	var cy := 706.0
+	for line in ["ARROWS OR WASD  SLIDE EVERYTHING ONE WAY", "R  RESTART        ESC  MENU"]:
+		Blocks.tracked(self, Vector2(ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
+		cy += 16
 
 	if dead:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "NO MOVES LEFT", "%d points        ENTER to play again" % score)

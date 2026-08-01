@@ -15,7 +15,7 @@ const CELL := 32
 const BOTTLE_ORIGIN := Vector2(60, 140)
 const PANEL_X := 372.0
 
-const COLORS := [Color("ff3b56"), Color("ffd400"), Color("2f6bff")]
+const COLORS := [Color("ff3b30"), Color("f2b705"), Color("3d8be0")]
 const MATCH_LEN := 4
 const MAX_VIRUSES := 84
 
@@ -490,7 +490,7 @@ func _draw() -> void:
 			var col: Color = COLORS[color[r][c]]
 			var rect := _cell_rect(c, r)
 			if pending.has(Vector2i(c, r)) and flash_on:
-				col = Color.WHITE
+				col = Blocks.INK
 			if k == VIRUS:
 				_draw_virus(rect, col)
 			else:
@@ -535,10 +535,7 @@ func _draw_half(rect: Rect2, col: Color, k: int) -> void:
 			draw_rect(Rect2(r.position.x, center.y, r.size.x, r.size.y * 0.5 + 1), col)
 		LINK_UP:
 			draw_rect(Rect2(r.position.x, r.position.y - 1, r.size.x, r.size.y * 0.5 + 1), col)
-	# Highlight
-	var hl := col.lightened(0.45)
-	hl.a = col.a
-	draw_circle(center - Vector2(radius * 0.35, radius * 0.35), radius * 0.22, hl)
+	# No highlight: flat colour only.
 
 
 func _draw_virus(rect: Rect2, col: Color) -> void:
@@ -553,9 +550,9 @@ func _draw_virus(rect: Rect2, col: Color) -> void:
 	draw_circle(center + Vector2(0, radius * 0.95), nub, col)
 	# Eyes
 	var eye := radius * 0.26
-	var dark := Color(0.05, 0.05, 0.1)
-	draw_circle(center + Vector2(-radius * 0.32, -radius * 0.1), eye, Color.WHITE)
-	draw_circle(center + Vector2(radius * 0.32, -radius * 0.1), eye, Color.WHITE)
+	var dark := Blocks.INK
+	draw_circle(center + Vector2(-radius * 0.32, -radius * 0.1), eye, Blocks.PAPER)
+	draw_circle(center + Vector2(radius * 0.32, -radius * 0.1), eye, Blocks.PAPER)
 	draw_circle(center + Vector2(-radius * 0.32, -radius * 0.1), eye * 0.5, dark)
 	draw_circle(center + Vector2(radius * 0.32, -radius * 0.1), eye * 0.5, dark)
 
@@ -563,7 +560,7 @@ func _draw_virus(rect: Rect2, col: Color) -> void:
 func _draw_panel() -> void:
 	var x := PANEL_X
 
-	Blocks.text(self, Vector2(x, 160), "NEXT", 15, Blocks.TEXT_DIM)
+	Blocks.tracked(self, Vector2(x, 158), "NEXT", 11, Blocks.INK_MID)
 	var box := Rect2(Vector2(x, 172), Vector2(112, 72))
 	Blocks.panel(self, box)
 	var pill_w := CELL * 2.0
@@ -571,26 +568,27 @@ func _draw_panel() -> void:
 	_draw_half(Rect2(origin, Vector2(CELL, CELL)), COLORS[next_colors[0]], LINK_RIGHT)
 	_draw_half(Rect2(origin + Vector2(CELL, 0), Vector2(CELL, CELL)), COLORS[next_colors[1]], LINK_LEFT)
 
-	var sy := 300.0
+	var sy := 302.0
 	for entry in [
 		["LEVEL", str(level)],
 		["VIRUSES", str(viruses_left)],
 		["SCORE", str(score)],
 	]:
-		Blocks.text(self, Vector2(x, sy), entry[0], 14, Blocks.TEXT_DIM)
-		Blocks.text(self, Vector2(x, sy + 26), entry[1], 24, Blocks.TEXT)
-		sy += 60
+		Blocks.rule(self, Vector2(x, sy - 14), 100, Blocks.INK, 1.0)
+		Blocks.stat(self, Vector2(x, sy), entry[0], entry[1], 26)
+		sy += 64
 
 	if chain > 1 and state != FALLING:
-		Blocks.text(self, Vector2(x, sy + 10), "CHAIN x%d" % chain, 18, Blocks.ACCENT)
+		Blocks.tracked(self, Vector2(x, sy + 10), "CHAIN X%d" % chain, 14, Blocks.RED)
 
 
 func _draw_controls() -> void:
-	var cy := 700.0
+	Blocks.rule(self, Vector2(BOTTLE_ORIGIN.x, 686), 480, Blocks.INK, 1.0)
+	var cy := 706.0
 	for line in [
-		"← →  move        ↓  soft drop        SPACE  hard drop",
-		"↑ / X  rotate cw        Z  rotate ccw",
-		"P  pause        R  restart        ESC  menu",
+		"LEFT RIGHT  MOVE        DOWN  SOFT DROP        SPACE  HARD DROP",
+		"UP / X  ROTATE CW        Z  ROTATE CCW",
+		"P  PAUSE        R  RESTART        ESC  MENU",
 	]:
-		Blocks.text(self, Vector2(BOTTLE_ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
-		cy += 18
+		Blocks.tracked(self, Vector2(BOTTLE_ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
+		cy += 16

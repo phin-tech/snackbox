@@ -14,9 +14,9 @@ const START_LENGTH := 4
 const BASE_INTERVAL := 0.13
 const MIN_INTERVAL := 0.05
 
-const COLOR_HEAD := Color("2ee65a")
-const COLOR_BODY := Color("1fae47")
-const COLOR_FOOD := Color("ff3b56")
+const COLOR_HEAD := Color("efede8")
+const COLOR_BODY := Color("b9b6b0")
+const COLOR_FOOD := Color("ff3b30")
 
 var body: Array[Vector2i] = []
 var dir := Vector2i(1, 0)
@@ -179,25 +179,24 @@ func _draw() -> void:
 			var c := rect.position + rect.size * 0.5
 			var side := Vector2(-dir.y, dir.x) * (CELL * 0.18)
 			var fwd := Vector2(dir) * (CELL * 0.16)
-			draw_circle(c + fwd + side, CELL * 0.09, Color(0.05, 0.05, 0.1))
-			draw_circle(c + fwd - side, CELL * 0.09, Color(0.05, 0.05, 0.1))
+			draw_circle(c + fwd + side, CELL * 0.09, Blocks.PAPER)
+			draw_circle(c + fwd - side, CELL * 0.09, Blocks.PAPER)
 		else:
 			draw_rect(rect, COLOR_BODY)
 
 	Blocks.outline(self, board.grow(2))
 
-	Blocks.text(self, Vector2(ORIGIN.x, 70), "SCORE", 14, Blocks.TEXT_DIM)
-	Blocks.text(self, Vector2(ORIGIN.x, 98), str(score), 26, Blocks.TEXT)
-	Blocks.text(self, Vector2(ORIGIN.x + 180, 70), "LENGTH", 14, Blocks.TEXT_DIM)
-	Blocks.text(self, Vector2(ORIGIN.x + 180, 98), str(body.size()), 26, Blocks.TEXT)
+	Blocks.rule(self, Vector2(ORIGIN.x, 62), COLS * CELL, Blocks.INK, 1.0)
+	Blocks.stat(self, Vector2(ORIGIN.x, 82), "SCORE", str(score), 28)
+	Blocks.stat(self, Vector2(ORIGIN.x + 170, 82), "LENGTH", str(body.size()), 28)
 	if best > 0:
-		Blocks.text(self, Vector2(ORIGIN.x + 340, 70), "BEST", 14, Blocks.TEXT_DIM)
-		Blocks.text(self, Vector2(ORIGIN.x + 340, 98), str(best), 26, Blocks.TEXT)
+		Blocks.stat(self, Vector2(ORIGIN.x + 340, 82), "BEST", str(best), 28)
 
-	var cy := 700.0
-	for line in ["← → ↑ ↓ or WASD  turn", "P  pause        R  restart        ESC  menu"]:
-		Blocks.text(self, Vector2(ORIGIN.x, cy), line, 13, Blocks.TEXT_FAINT)
-		cy += 18
+	Blocks.rule(self, Vector2(ORIGIN.x, 686), COLS * CELL, Blocks.INK, 1.0)
+	var cy := 706.0
+	for line in ["ARROWS OR WASD  TURN", "P  PAUSE        R  RESTART        ESC  MENU"]:
+		Blocks.tracked(self, Vector2(ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
+		cy += 16
 
 	if paused:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "PAUSED", "P to resume")
