@@ -18,7 +18,6 @@ const GAMES := {
 	"landgrab": preload("res://landgrab.tscn"),
 	"snake": preload("res://snake.tscn"),
 	"doubles": preload("res://doubles.tscn"),
-	"puck": preload("res://puck.tscn"),
 }
 
 var screen: Node2D = null

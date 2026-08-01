@@ -76,22 +76,6 @@ animation.
 
 Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
 
-### Puck Café
-
-Table duel in the spirit of *Shufflepuck Café*. The whole back wall is the
-goal, so defence is entirely about where your mallet is. First to seven, then
-the next regular sits down.
-
-The regulars are Doug (night manager, keeps nodding off), Princess Brenda
-(swans about admiring herself), Gary the Thumb (lunges at everything), Mx. Void
-(drifts sideways in a way no elbow explains) and The Mop (says nothing, is
-simply always where the puck will be). Each has a face for a mallet, a
-behavioural tic, and opinions about how it's going.
-
-<img src="docs/puck.png" alt="Puck Café" width="300">
-
-Controls: mouse or `← → ↑ ↓` move your mallet, `R` restart, `Esc` menu.
-
 ### Landgrab
 
 Qix style area claiming. Hold a direction to cut into open space, then get back
@@ -124,7 +108,6 @@ handful of functional colours.
 | `landgrab.gd` / `landgrab.tscn` | Landgrab |
 | `snake.gd` / `snake.tscn` | Snake |
 | `doubles.gd` / `doubles.tscn` | Doubles |
-| `puck.gd` / `puck.tscn` | Puck Café |
 | `scores.gd` | Persistent bests, shared by every game |
 | `tests/smoke.gd` | Headless test suite |
 | `tests/shot.gd` | Renders screenshots for the README |

@@ -19,8 +19,6 @@ const ENTRIES := [
 	{"id": "snake", "label": "Classic", "desc": "Eat, grow, don't bite yourself."},
 	{"header": "DOUBLES"},
 	{"id": "doubles", "label": "2048", "desc": "Slide and merge your way to 2048."},
-	{"header": "PUCK CAFE"},
-	{"id": "puck", "label": "Table Duel", "desc": "Air hockey against a roster of regulars."},
 ]
 
 var index := 1
@@ -71,8 +69,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			chosen.emit("snake")
 		KEY_7:
 			chosen.emit("doubles")
-		KEY_8:
-			chosen.emit("puck")
 
 
 func _draw() -> void:
