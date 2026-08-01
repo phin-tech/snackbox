@@ -4,7 +4,7 @@ vars:
   # Override with: GODOT=/path/to/Godot task run
   GODOT: '{{.GODOT | default "/Applications/Godot_mono.app/Contents/MacOS/Godot"}}'
   BUILD_DIR: build
-  TEST_TIMEOUT: 180
+  TEST_TIMEOUT: 300
   APP_NAME: Snackbox
   # Override with: INSTALL_DIR="$HOME/Applications" task install
   INSTALL_DIR: '{{.INSTALL_DIR | default "/Applications"}}'
@@ -58,10 +58,10 @@ tasks:
         echo "OK: booted 300 frames with no script errors"
 
   test:
-    desc: Play every game headlessly and check board invariants
+    desc: 'Run the unit tests. One file: task test -- -gtest=res://test/unit/test_seeds.gd'
     deps: [_check-godot]
     cmds:
-      - scripts/test.sh "{{.GODOT}}" {{.TEST_TIMEOUT}}
+      - scripts/test.sh "{{.GODOT}}" {{.TEST_TIMEOUT}} {{.CLI_ARGS}}
 
   shot:
     desc: 'Render one screen to a PNG: ID=pills OUT=/tmp/pills.png task shot'

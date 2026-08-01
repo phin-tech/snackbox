@@ -10,3 +10,6 @@ build/
 
 # macOS
 .DS_Store
+
+# GUT writes these when run from the editor
+.gut_editor*
