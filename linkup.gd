@@ -51,6 +51,8 @@ var cursor := Vector2i.ZERO
 var dragging := false
 var solved := false
 
+var seeds := Seeds.Entry.new("linkup")
+
 
 func _ready() -> void:
 	new_game()
@@ -66,6 +68,7 @@ func _rules() -> Dictionary:
 
 
 func _start_level() -> void:
+	seed(seeds.level_seed(level))
 	var r := _rules()
 	size = clampi(r.start + (level - 1) / r.grow, MIN_SIZE, r.max)
 	_generate()
@@ -371,6 +374,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
+	# Seed entry takes keys first, so typing a code can't also drive the game.
+	match seeds.handle_key(event as InputEventKey):
+		Seeds.Entry.CONSUMED:
+			queue_redraw()
+			return
+		Seeds.Entry.APPLIED:
+			new_game()
+			queue_redraw()
+			return
+
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -489,13 +502,14 @@ func _draw_hud() -> void:
 	if Scores.has("linkup." + difficulty):
 		Blocks.stat(self, Vector2(x + 350, 150), "BEST",
 			"LVL %d" % int(Scores.get_best("linkup." + difficulty)), 24)
+	Blocks.tracked(self, Vector2(x + 350, 178), "SEED  " + seeds.label(), 11, Blocks.INK_MID)
 
 	Blocks.rule(self, Vector2(x, 686), BOARD_PX, Blocks.INK, 1.0)
 	var cy := 706.0
 	for line in [
 		"DRAG FROM A DOT TO ITS TWIN - OR ARROWS TO MOVE, SPACE TO GRAB",
 		"FILL EVERY SQUARE TO SOLVE THE BOARD",
-		"N  CLEAR        R  NEW BOARD        ESC  MENU",
+		"N  CLEAR        R  NEW BOARD        S  SEED        ESC  MENU",
 	]:
 		Blocks.tracked(self, Vector2(x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16

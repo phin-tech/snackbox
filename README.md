@@ -12,6 +12,10 @@ task --list     # everything else
 
 Press `F` for fullscreen, `Esc` to return to the menu from any game.
 
+**Seeds.** Fence, Linkup, Shapes, Gridlock and Decant all show a four-character
+seed. Everyone gets the same one each day, so you can compare scores on the same
+board — press `S` to type someone else's and play theirs instead.
+
 <img src="docs/menu.png" alt="Snackbox menu" width="300">
 
 ## Blockfall

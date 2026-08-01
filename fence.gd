@@ -30,6 +30,7 @@ var level := 1
 var best_this_level := 0
 var message := ""
 var message_timer := 0.0
+var seeds := Seeds.Entry.new("fence")
 
 
 func _ready() -> void:
@@ -42,6 +43,7 @@ func new_game() -> void:
 
 
 func _start_level() -> void:
+	seed(seeds.level_seed(level))
 	_generate()
 	_clear_path()
 	best_this_level = 0
@@ -361,6 +363,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+
+	# Seed entry takes keys first, so typing a code can't also drive the game.
+	match seeds.handle_key(event as InputEventKey):
+		Seeds.Entry.CONSUMED:
+			queue_redraw()
+			return
+		Seeds.Entry.APPLIED:
+			new_game()
+			queue_redraw()
+			return
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -451,6 +463,7 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(x + 110, 150), "FENCE LEFT", str(left()), 24)
 	Blocks.stat(self, Vector2(x + 260, 150), "SCORE", str(score) if closed else "-", 24)
 	Blocks.stat(self, Vector2(x + 380, 150), "PAR", str(par), 24)
+	Blocks.tracked(self, Vector2(x, 192), "SEED  " + seeds.label(), 11, Blocks.INK_MID)
 
 	if message != "":
 		Blocks.tracked(self, Vector2(x, 692), message, 11, Blocks.RED)
@@ -459,7 +472,7 @@ func _draw_hud() -> void:
 	for line in [
 		"DRAG ALONG THE GRID LINES AND COME BACK TO WHERE YOU STARTED",
 		"EVERYTHING INSIDE THE LOOP COUNTS - THE RED SQUARES TOO",
-		"N  CLEAR        R  NEW BOARD        ESC  MENU",
+		"N  CLEAR        R  NEW BOARD        S  ENTER A SEED        ESC  MENU",
 	]:
 		Blocks.tracked(self, Vector2(x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16

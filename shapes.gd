@@ -43,6 +43,7 @@ var dragging := false
 var solved := false
 var message := ""
 var message_timer := 0.0
+var seeds := Seeds.Entry.new("shapes")
 
 
 func _ready() -> void:
@@ -56,6 +57,7 @@ func new_game() -> void:
 
 func _start_level() -> void:
 	size = clampi(MIN_SIZE + (level - 1) / 3, MIN_SIZE, MAX_SIZE)
+	seed(seeds.level_seed(level))
 	_generate()
 	regions = []
 	_rebuild_cover()
@@ -294,6 +296,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
+	# Seed entry takes keys first, so typing a code can't also drive the game.
+	match seeds.handle_key(event as InputEventKey):
+		Seeds.Entry.CONSUMED:
+			queue_redraw()
+			return
+		Seeds.Entry.APPLIED:
+			new_game()
+			queue_redraw()
+			return
+
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -443,6 +455,7 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(x + 240, 150), "FILLED", "%d%%" % int(100.0 * filled_cells() / (size * size)), 24)
 	if Scores.has("shapes"):
 		Blocks.stat(self, Vector2(x + 350, 150), "BEST", "LVL %d" % int(Scores.get_best("shapes")), 24)
+	Blocks.tracked(self, Vector2(x, 192), "SEED  " + seeds.label(), 11, Blocks.INK_MID)
 
 	if message != "":
 		Blocks.tracked(self, Vector2(x, 186), message, 11, Blocks.RED)
@@ -473,7 +486,7 @@ func _draw_legend() -> void:
 	var cy := y + 48.0
 	for line in [
 		"DRAG OUT A RECTANGLE - CLICK ONE AGAIN TO TAKE IT BACK",
-		"N  CLEAR        R  NEW BOARD        ESC  MENU",
+		"N  CLEAR        R  NEW BOARD        S  SEED        ESC  MENU",
 	]:
 		Blocks.tracked(self, Vector2(x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16

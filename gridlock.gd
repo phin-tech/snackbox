@@ -53,6 +53,8 @@ var cursor := Vector2i(0, EXIT_ROW)
 var drag_from := Vector2i.ZERO
 var dragging := false
 
+var seeds := Seeds.Entry.new("gridlock")
+
 
 func _ready() -> void:
 	new_game()
@@ -64,6 +66,7 @@ func new_game() -> void:
 
 
 func _start_level() -> void:
+	seed(seeds.level_seed(level))
 	_generate()
 	moves = 0
 	solved = false
@@ -542,6 +545,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
+	# Seed entry takes keys first, so typing a code can't also drive the game.
+	match seeds.handle_key(event as InputEventKey):
+		Seeds.Entry.CONSUMED:
+			queue_redraw()
+			return
+		Seeds.Entry.APPLIED:
+			new_game()
+			queue_redraw()
+			return
+
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -645,13 +658,14 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(x + 240, 162), "CARS", str(vehicles.size()), 24)
 	if Scores.has("gridlock"):
 		Blocks.stat(self, Vector2(x + 340, 162), "BEST", "LVL %d" % int(Scores.get_best("gridlock")), 24)
+	Blocks.tracked(self, Vector2(x, 204), "SEED  " + seeds.label(), 11, Blocks.INK_MID)
 
 	Blocks.rule(self, Vector2(x, 686), BOARD_PX, Blocks.INK, 1.0)
 	var cy := 706.0
 	for line in [
 		"DRAG A CAR ALONG ITS OWN AXIS - OR ARROWS TO PICK AND PUSH",
 		"GET THE RED CAR OUT THROUGH THE GAP ON THE RIGHT",
-		"TAB  NEXT CAR        R  NEW BOARD        ESC  MENU",
+		"TAB  NEXT CAR        R  NEW BOARD        S  SEED        ESC  MENU",
 	]:
 		Blocks.tracked(self, Vector2(x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16

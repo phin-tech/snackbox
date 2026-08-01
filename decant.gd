@@ -38,6 +38,7 @@ var history := []             # [{from, to, amount}] for undo
 var solved := false
 var message := ""
 var message_timer := 0.0
+var seeds := Seeds.Entry.new("decant")
 
 
 func _ready() -> void:
@@ -54,6 +55,7 @@ func colour_count() -> int:
 
 
 func _start_level() -> void:
+	seed(seeds.level_seed(level))
 	_generate()
 	moves = 0
 	picked = -1
@@ -308,6 +310,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+
+	# Seed entry takes keys first, so typing a code can't also drive the game.
+	match seeds.handle_key(event as InputEventKey):
+		Seeds.Entry.CONSUMED:
+			queue_redraw()
+			return
+		Seeds.Entry.APPLIED:
+			new_game()
+			queue_redraw()
+			return
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -378,6 +390,7 @@ func _draw_hud() -> void:
 	Blocks.stat(self, Vector2(x + 240, 150), "COLOURS", str(colour_count()), 24)
 	if Scores.has("decant"):
 		Blocks.stat(self, Vector2(x + 380, 150), "BEST", "LVL %d" % int(Scores.get_best("decant")), 24)
+	Blocks.tracked(self, Vector2(x, 196), "SEED  " + seeds.label(), 11, Blocks.INK_MID)
 
 	if message != "":
 		Blocks.tracked(self, Vector2(x, 196), message, 11, Blocks.RED)
@@ -386,7 +399,7 @@ func _draw_hud() -> void:
 	for line in [
 		"CLICK A TUBE TO LIFT IT, THEN ANOTHER TO POUR - OR PRESS ITS NUMBER",
 		"A POUR NEEDS AN EMPTY TUBE OR THE SAME COLOUR ON TOP",
-		"Z  UNDO        R  NEW BOARD        ESC  MENU",
+		"Z  UNDO        R  NEW BOARD        S  ENTER A SEED        ESC  MENU",
 	]:
 		Blocks.tracked(self, Vector2(x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16

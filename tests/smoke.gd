@@ -55,6 +55,8 @@ func _ready() -> void:
 	_test_fence_geometry()
 	_test_fence_drawing()
 	_test_fence_levels()
+	_test_seed_codes()
+	_test_seed_reproducibility()
 
 
 	_cleanup_scores()
@@ -782,17 +784,27 @@ func _test_linkup_editing() -> void:
 			break
 
 	# Backing up over your own route rubs it out. Start from a fresh board -
-	# the crossing section above lays every route down, which solves it.
+	# the crossing section above lays every route down, which solves it. Use the
+	# longest route: on a short one the second step reaches the far dot, which
+	# completes the pair and quite rightly refuses any further drawing.
 	g._start_level()
-	var run1: Array = g.pairs[0].solution
+	var longest := 0
+	for i in g.pairs.size():
+		if g.pairs[i].solution.size() > g.pairs[longest].solution.size():
+			longest = i
+	var run1: Array = g.pairs[longest].solution
+	if run1.size() < 4:
+		_fail("linkup/edit: no route long enough to test stepping back")
+		g.queue_free()
+		return
 	g.grab(run1[0])
 	g.extend(run1[1])
 	g.extend(run1[2])
-	var before: int = g.paths[0].size()
+	var before: int = g.paths[longest].size()
 	g.extend(run1[1])          # step back
-	if g.paths[0].size() != before - 1:
+	if g.paths[longest].size() != before - 1:
 		_fail("linkup/edit: stepping back did not shorten the route (%d -> %d)"
-			% [before, g.paths[0].size()])
+			% [before, g.paths[longest].size()])
 
 	# A dot belonging to another colour is a wall.
 	g._start_level()
@@ -1447,3 +1459,87 @@ func _test_fence_levels() -> void:
 		if g.budget < 8:
 			_fail("fence: level %d budget %d cannot enclose anything useful" % [lvl, g.budget])
 	g.queue_free()
+
+
+# --- Seeds --------------------------------------------------------------------
+
+func _test_seed_codes() -> void:
+	# A code has to survive the round trip, or sharing one is pointless.
+	for value in [0, 1, 42, 9999, 1048575]:
+		var text := Seeds.code(value)
+		if text.length() != Seeds.LENGTH:
+			_fail("seeds: code for %d was %d characters" % [value, text.length()])
+		if Seeds.parse(text) != value % int(pow(Seeds.ALPHABET.length(), Seeds.LENGTH)):
+			_fail("seeds: %d -> %s -> %d did not round trip" % [value, text, Seeds.parse(text)])
+
+	# Lower case and stray spaces are what someone pasting a code will send.
+	if Seeds.parse(" a7k2 ") != Seeds.parse("A7K2"):
+		_fail("seeds: parsing is case or whitespace sensitive")
+
+	# Two games on the same base must not get the same board.
+	if Seeds.mix("fence", 1234, 1) == Seeds.mix("shapes", 1234, 1):
+		_fail("seeds: two games sharing a base seed got the same level seed")
+	if Seeds.mix("fence", 1234, 1) == Seeds.mix("fence", 1234, 2):
+		_fail("seeds: two levels of one seed got the same board")
+	if Seeds.mix("fence", 1234, 1) != Seeds.mix("fence", 1234, 1):
+		_fail("seeds: mixing is not deterministic")
+
+
+func _board_of(g: Node) -> String:
+	# A cheap fingerprint of whatever the generator produced.
+	if g is Fence:
+		return str(g.value) + "/" + str(g.par) + "/" + str(g.budget)
+	if g is Shapes:
+		var out := ""
+		for piece in g.solution:
+			out += str(piece.rect)
+		return out + str(g.clues)
+	if g is Decant:
+		return str(g.tubes)
+	if g is Linkup:
+		var out2 := ""
+		for p in g.pairs:
+			out2 += str(p.solution)
+		return out2
+	if g is Gridlock:
+		return str(g.vehicles)
+	return ""
+
+
+func _test_seed_reproducibility() -> void:
+	# The whole point: the same seed has to deal the same board every time, and
+	# a different seed has to deal a different one.
+	for scene in ["fence", "shapes", "decant", "linkup", "gridlock"]:
+		var a: Node = load("res://%s.tscn" % scene).instantiate()
+		var b: Node = load("res://%s.tscn" % scene).instantiate()
+		var c: Node = load("res://%s.tscn" % scene).instantiate()
+		_drive(a)
+		_drive(b)
+		_drive(c)
+
+		a.seeds.base = 4242
+		b.seeds.base = 4242
+		c.seeds.base = 9999
+		a.level = 2
+		b.level = 2
+		c.level = 2
+		a._start_level()
+		b._start_level()
+		c._start_level()
+
+		var board_a := _board_of(a)
+		if board_a == "":
+			_fail("seeds/%s: no fingerprint, the test cannot tell boards apart" % scene)
+		elif board_a != _board_of(b):
+			_fail("seeds/%s: the same seed dealt two different boards" % scene)
+		elif board_a == _board_of(c):
+			_fail("seeds/%s: two different seeds dealt the same board" % scene)
+
+		# And re-dealing the same level from the same seed is stable.
+		a._start_level()
+		if _board_of(a) != board_a:
+			_fail("seeds/%s: replaying a level changed the board" % scene)
+
+		a.queue_free()
+		b.queue_free()
+		c.queue_free()
