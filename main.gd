@@ -5,6 +5,9 @@ extends Node2D
 # picked. Games are independent Node2Ds that draw themselves and emit
 # exit_to_menu when the player backs out.
 
+# The default shape. A game may report a different one from design_size(), and
+# the shell resizes the window and the stretch base to match - which is how the
+# card games get to be landscape without disturbing the portrait ones.
 const DESIGN_SIZE := Vector2(600, 760)
 
 # Each game is a scene so sprites, audio and effects have somewhere to live
@@ -23,13 +26,15 @@ const GAMES := {
 	"linkup.hard": preload("res://linkup.tscn"),
 	"gridlock": preload("res://gridlock.tscn"),
 	"shapes": preload("res://shapes.tscn"),
+	"pyramid": preload("res://pyramid.tscn"),
+	"decant": preload("res://decant.tscn"),
 }
 
 var screen: Node2D = null
 
 
 func _ready() -> void:
-	_fit_window_to_screen()
+	_fit_window_to_screen(DESIGN_SIZE)
 	# Skip the menu when asked: godot --path . -- --game=mondrian
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--game="):
@@ -41,7 +46,7 @@ func _ready() -> void:
 	_show_menu()
 
 
-func _fit_window_to_screen() -> void:
+func _fit_window_to_screen(design: Vector2) -> void:
 	# Scale the window up to fill most of the usable screen area while keeping
 	# the design aspect. Stretch mode "canvas_items" scales the drawing.
 	var screen_id := DisplayServer.window_get_current_screen()
@@ -55,9 +60,9 @@ func _fit_window_to_screen() -> void:
 	# Leave room for the title bar, then take essentially all the height that
 	# remains - the design is portrait, so height is always the binding limit.
 	var room := Vector2(avail.x * 0.94, (avail.y - 34.0) * 0.99)
-	var factor: float = min(room.x / DESIGN_SIZE.x, room.y / DESIGN_SIZE.y)
+	var factor: float = min(room.x / design.x, room.y / design.y)
 	factor = max(factor, 1.0)
-	var size := Vector2i(DESIGN_SIZE * factor)
+	var size := Vector2i(design * factor)
 	DisplayServer.window_set_size(size)
 	DisplayServer.window_set_position(Vector2i(origin + (avail - Vector2(size)) * 0.5))
 
@@ -79,6 +84,14 @@ func _swap(next: Node2D) -> void:
 	if screen != null:
 		screen.queue_free()
 	screen = next
+
+	var design := DESIGN_SIZE
+	if next.has_method("design_size"):
+		design = next.design_size()
+	if Vector2(get_window().content_scale_size) != design:
+		get_window().content_scale_size = Vector2i(design)
+		_fit_window_to_screen(design)
+
 	add_child(next)
 
 

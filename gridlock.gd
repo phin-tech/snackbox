@@ -4,15 +4,30 @@ extends Node2D
 # Sliding traffic jam, after Rush Hour. Cars and trucks only move along their
 # own axis; shuffle them until the red car can reach the gap on the right.
 #
-# Boards are generated backwards from the finished position: park the red car
-# at the exit, drop in the other vehicles, then make random legal moves. Every
-# move is reversible, so whatever state the scramble lands in can always be
-# driven back to the exit. The scramble is kept so tests can replay it.
+# Boards are graded before they are handed out: pick a set of vehicles, work out
+# how many moves every arrangement of it would need, and keep an arrangement
+# whose answer lands in the level's band. Scrambling backwards from the finished
+# position was tried first and gave near-trivial boards - an unbiased random walk
+# almost never parks anything in the exit row, so the red car could usually just
+# drive straight out.
 
 signal exit_to_menu
 
 const SIZE := 6
 const EXIT_ROW := 2
+
+# Generation budget. A set of vehicles that blows the cap is dropped rather than
+# graded exactly - the point is a playable board, quickly - and the cap during
+# generation is deliberately mean, because the sprawling state spaces it throws
+# away are the loose boards with nothing interesting in them anyway.
+const STATE_CAP := 200000     # states a single solver run may explore
+const GEN_STATE_CAP := 1200   # ... and the tighter cap a set gets while grading
+const GEN_ATTEMPTS := 200     # sets of vehicles graded per level start
+const GEN_BUDGET_MS := 400    # ... and the wall clock they share
+const MUTATE_CHANCE := 0.85   # how often a try nudges the best set instead of starting over
+const STALE_LIMIT := 6        # tries without progress before the climb starts again
+const HARD_FLOOR := 4         # nothing below this is ever handed to the player
+
 const BOARD_PX := 432.0
 const ORIGIN := Vector2(84, 210)
 
@@ -29,7 +44,7 @@ const COLORS := [
 const TARGET_COLOR := Color("ff3b30")
 
 var vehicles := []            # [{pos: Vector2i, len: int, horiz: bool}]
-var scramble := []            # [{v: int, d: int}] applied from solved -> start
+var min_solution := 0         # shortest solution of the board as handed out
 var level := 1
 var moves := 0
 var selected := -1
@@ -128,7 +143,227 @@ func _check_solved() -> void:
 	Scores.submit_high("gridlock", level)
 
 
+# --- Solver --------------------------------------------------------------------
+#
+# A board is only ever the position of each vehicle along its own axis: rows,
+# columns, lengths and orientations never change. Three bits per vehicle packs
+# a whole board into one integer, which is what the searches below shuffle
+# about - no arrays are copied per state, which matters when a level start
+# grades tens of thousands of them.
+
+func _layout() -> Dictionary:
+	# Everything a move cannot change, worked out once. `cells` holds, for each
+	# vehicle and each position it could take, a bitmask of the squares it would
+	# cover, so testing a slide is a couple of integer operations.
+	var n := vehicles.size()
+	var lay := {
+		"lens": PackedByteArray(),
+		"shift": PackedByteArray(),   # where this vehicle's three bits sit in a key
+		"span": PackedByteArray(),    # positions it can take, 0 .. span - 1
+		"cells": [],                  # [vehicle][position] -> bitmask of squares
+		"key": 0,                     # the board as it stands
+	}
+	lay.lens.resize(n)
+	lay.shift.resize(n)
+	lay.span.resize(n)
+	for i in n:
+		var v: Dictionary = vehicles[i]
+		lay.lens[i] = v.len
+		lay.shift[i] = 3 * (n - 1 - i)
+		lay.span[i] = SIZE - v.len + 1
+		var masks := PackedInt64Array()
+		for p in lay.span[i]:
+			var m := 0
+			for j in v.len:
+				var c: Vector2i = Vector2i(p + j, v.pos.y) if v.horiz else Vector2i(v.pos.x, p + j)
+				m |= 1 << (c.y * SIZE + c.x)
+			masks.append(m)
+		lay.cells.append(masks)
+		var free: int = v.pos.x if v.horiz else v.pos.y
+		lay.key |= free << lay.shift[i]
+	return lay
+
+
+func _at(key: int, lay: Dictionary, index: int) -> int:
+	return (key >> lay.shift[index]) & 7
+
+
+func _neighbour_keys(key: int, lay: Dictionary) -> PackedInt64Array:
+	# Every board one move away. Sliding a vehicle any distance counts as a
+	# single move - the usual Rush Hour metric - so each stopping place along
+	# its run is a separate neighbour.
+	var lens: PackedByteArray = lay.lens
+	var shift: PackedByteArray = lay.shift
+	var span: PackedByteArray = lay.span
+	var cells: Array = lay.cells
+	var n := lens.size()
+
+	var board := 0
+	for i in n:
+		board |= cells[i][(key >> shift[i]) & 7]
+
+	var out := PackedInt64Array()
+	for i in n:
+		var masks: PackedInt64Array = cells[i]
+		var at: int = (key >> shift[i]) & 7
+		var rest: int = board & ~masks[at]
+		var p := at - 1
+		while p >= 0 and (rest & masks[p]) == 0:
+			out.append(key - ((at - p) << shift[i]))
+			p -= 1
+		p = at + 1
+		while p < span[i] and (rest & masks[p]) == 0:
+			out.append(key + ((p - at) << shift[i]))
+			p += 1
+	return out
+
+
+func _move_between(from: int, to: int, lay: Dictionary) -> Dictionary:
+	# The single move that turns one board into the next, recovered from the one
+	# three-bit field the two keys disagree on.
+	for i in lay.lens.size():
+		var a := _at(from, lay, i)
+		var b := _at(to, lay, i)
+		if a != b:
+			return {"v": i, "d": b - a}
+	return {}
+
+
+func _search(cap: int) -> Dictionary:
+	# Breadth-first from the board as it stands, so the first time the red car
+	# reaches the exit is by definition the shortest way of getting it there.
+	var v0: Dictionary = vehicles[0]
+	if not v0.horiz or v0.pos.y != EXIT_ROW:
+		return {"moves": -1, "path": []}
+	var lay := _layout()
+	var goal: int = SIZE - lay.lens[0]
+	if _at(lay.key, lay, 0) >= goal:
+		return {"moves": 0, "path": []}
+
+	var queue := PackedInt64Array([lay.key])
+	var came := {lay.key: -1}         # board -> the board it was reached from
+	var head := 0
+	while head < queue.size():
+		if head >= cap:
+			return {"moves": -1, "path": []}
+		var cur: int = queue[head]
+		head += 1
+		for next in _neighbour_keys(cur, lay):
+			if came.has(next):
+				continue
+			came[next] = cur
+			if _at(next, lay, 0) >= goal:
+				var path := []
+				var at := next
+				while came[at] != -1:
+					path.push_front(_move_between(came[at], at, lay))
+					at = came[at]
+				return {"moves": path.size(), "path": path}
+			queue.append(next)
+
+	return {"moves": -1, "path": []}
+
+
+func _profile(lo: int, hi: int, cap: int) -> Dictionary:
+	# Grades every board this set of vehicles can reach in one go, and returns
+	# one whose shortest solution lands in [lo, hi] - or the hardest board the
+	# set can manage, if it cannot reach the band at all. Walking outwards from
+	# the finished boards measures the whole space at once, which is far cheaper
+	# than solving thousands of random boards one at a time. Distance from the
+	# nearest finished board is exactly the minimum move count, because a slide
+	# and its reverse are both legal.
+	var lay := _layout()
+	var goal: int = SIZE - lay.lens[0]
+
+	# First walk: the component this set of vehicles lives in, and which of its
+	# boards are already finished.
+	var queue := PackedInt64Array([lay.key])
+	var seen := {lay.key: true}
+	var finished := PackedInt64Array()
+	var head := 0
+	while head < queue.size():
+		if head >= cap:
+			return {}
+		var cur: int = queue[head]
+		head += 1
+		if _at(cur, lay, 0) >= goal:
+			finished.append(cur)
+		for next in _neighbour_keys(cur, lay):
+			if not seen.has(next):
+				seen[next] = true
+				queue.append(next)
+	if finished.is_empty():
+		return {}
+
+	# Second walk: outwards from all of them at once, which numbers every board
+	# with the moves it needs. It runs in order of distance, so the pick is
+	# simply kept at the deepest ring reached so far without passing hi - the
+	# hardest board the band allows - and there is no reason to walk past that.
+	var dist := {}
+	for f in finished:
+		dist[f] = 0
+	var picked := 0
+	var picked_depth := 0
+	var picked_count := 0
+
+	head = 0
+	while head < finished.size():
+		var cur: int = finished[head]
+		head += 1
+		var d: int = dist[cur] + 1
+		if d > hi:
+			break
+		for next in _neighbour_keys(cur, lay):
+			if dist.has(next):
+				continue
+			dist[next] = d
+			finished.append(next)
+			if d > picked_depth:
+				picked_depth = d
+				picked = next
+				picked_count = 1
+			elif d == picked_depth:
+				# Reservoir sample, so a level does not always open on the first
+				# board of its difficulty the walk happens to trip over.
+				picked_count += 1
+				if randi() % picked_count == 0:
+					picked = next
+
+	if picked_depth == 0:
+		return {}
+	return {"key": picked, "moves": picked_depth, "lay": lay}
+
+
+func _apply(key: int, lay: Dictionary) -> void:
+	for i in vehicles.size():
+		var v: Dictionary = vehicles[i]
+		var free := _at(key, lay, i)
+		v.pos = Vector2i(free, v.pos.y) if v.horiz else Vector2i(v.pos.x, free)
+		vehicles[i] = v
+
+
+func min_moves(cap := STATE_CAP) -> int:
+	# Shortest solution for the board as it stands, or -1 if there is none (or
+	# the search hit the cap, which for our purposes is the same answer).
+	return _search(cap).moves
+
+
+func solve(cap := STATE_CAP) -> Array:
+	# The moves of one shortest solution, as {v, d} pairs for move_vehicle.
+	return _search(cap).path
+
+
 # --- Generation ----------------------------------------------------------------
+
+func difficulty_band(lvl: int) -> Vector2i:
+	# Minimum moves wanted, in the metric above: a slide of any distance is one
+	# move. Level one opens at six or so - enough that the exit row is properly
+	# blocked - and the floor climbs a move every couple of levels. It stops at
+	# nine because boards harder than that are rare enough in random sets that
+	# hunting one would cost more time than a level start has to spare.
+	var lo: int = clampi(5 + lvl / 2, 6, 9)
+	return Vector2i(lo, lo + 3)
+
 
 func _fits(v: Dictionary, placed: Array) -> bool:
 	for c in cells_of(v):
@@ -142,51 +377,123 @@ func _fits(v: Dictionary, placed: Array) -> bool:
 
 
 func _generate() -> void:
-	# Build, and reject any board that happens to land back on the finished
-	# position. Nudging a stuck board out of it is not always possible - the
-	# red car can be walled in at the exit - so start over instead.
-	for _attempt in 24:
-		_build_once()
-		if not is_solved():
+	# Grade sets of vehicles until one of them can be arranged into a board in
+	# the band. A set that falls short is usually close, so most attempts nudge
+	# the best set so far rather than starting from scratch - moving one vehicle
+	# elsewhere reliably finds the missing move or two, where fresh random sets
+	# land back at the shallow end most of the time.
+	var band := difficulty_band(level)
+	var deadline := Time.get_ticks_msec() + GEN_BUDGET_MS
+	var best := []
+	var best_moves := -1
+	var kept := []
+	var kept_moves := -1
+	var stale := 0
+
+	for _attempt in GEN_ATTEMPTS:
+		var cand := _mutate(kept) if not kept.is_empty() and randf() < MUTATE_CHANCE else _candidate()
+		if cand.is_empty():
+			continue
+		vehicles = cand
+		var graded := _profile(band.x, band.y, GEN_STATE_CAP)
+		if graded.is_empty():
+			continue
+		_apply(graded.key, graded.lay)
+		if graded.moves >= band.x:
+			min_solution = graded.moves
 			return
-	# Nothing usable after all that: back the red car off by force so the
-	# player is at least handed a board they can play.
-	while is_solved() and move_vehicle(0, -1):
-		pass
-	moves = 0
+		# Sideways moves count as progress, otherwise the climb sits on the first
+		# plateau it reaches; if even those dry up, throw the set away and start
+		# again somewhere else.
+		if graded.moves >= kept_moves:
+			kept_moves = graded.moves
+			kept = _clone(vehicles)
+			stale = 0
+		else:
+			stale += 1
+			if stale > STALE_LIMIT:
+				kept = []
+				kept_moves = -1
+				stale = 0
+		if graded.moves > best_moves:
+			best_moves = graded.moves
+			best = _clone(vehicles)
+		# Anything at or above the hard floor will do once time is up.
+		if Time.get_ticks_msec() >= deadline and best_moves >= HARD_FLOOR:
+			break
+
+	if best_moves >= HARD_FLOOR:
+		vehicles = best
+		min_solution = best_moves
+		return
+
+	# Nothing usable at all, which needs a run of very bad luck. Fall back to a
+	# fixed board rather than handing the player something trivial.
+	vehicles = [
+		{"pos": Vector2i(0, EXIT_ROW), "len": 2, "horiz": true},
+		{"pos": Vector2i(2, 0), "len": 3, "horiz": false},
+		{"pos": Vector2i(3, 1), "len": 3, "horiz": false},
+		{"pos": Vector2i(5, 2), "len": 2, "horiz": false},
+		{"pos": Vector2i(4, 0), "len": 2, "horiz": true},
+		{"pos": Vector2i(0, 4), "len": 3, "horiz": true},
+		{"pos": Vector2i(4, 4), "len": 2, "horiz": false},
+	]
+	min_solution = min_moves()
 
 
-func _build_once() -> void:
-	# Start from the finished position: red car parked at the exit.
-	var target := {"pos": Vector2i(SIZE - 2, EXIT_ROW), "len": 2, "horiz": true}
-	vehicles = [target]
+func _clone(list: Array) -> Array:
+	var out := []
+	for v in list:
+		out.append(v.duplicate())
+	return out
 
-	var wanted: int = clampi(4 + level / 2, 4, 10)
+
+func _mutate(list: Array) -> Array:
+	# Take a set apart and put one of its vehicles back somewhere else.
+	var out := _clone(list)
+	out.remove_at(1 + randi() % (out.size() - 1))
+	for _try in 30:
+		var v := _random_vehicle()
+		if _fits(v, out):
+			out.append(v)
+			return out
+	return out
+
+
+func _random_vehicle() -> Dictionary:
+	# Upright traffic in the columns left of the exit is the only thing that can
+	# ever stand in the red car's way, so it gets more than its share of the
+	# draw - scatter everything uniformly and the exit row comes out clear far
+	# too often.
+	var length := 2 if randf() < 0.68 else 3
+	if randf() < 0.45:
+		var col := randi() % (SIZE - 2)
+		var top := randi_range(maxi(0, EXIT_ROW - length + 1), mini(EXIT_ROW, SIZE - length))
+		return {"pos": Vector2i(col, top), "len": length, "horiz": false}
+	var horiz := randi() % 2 == 0
+	var span := SIZE - length + 1
+	if horiz:
+		# The exit row belongs to the red car and the traffic crossing it: another
+		# car parked there can only wall the red one in or be shoved aside.
+		var row := randi() % (SIZE - 1)
+		return {"pos": Vector2i(randi() % span, row + (1 if row >= EXIT_ROW else 0)), "len": length, "horiz": true}
+	return {"pos": Vector2i(randi() % SIZE, randi() % span), "len": length, "horiz": false}
+
+
+func _candidate() -> Array:
+	# What matters here is the set of vehicles - which columns hold upright
+	# traffic, which rows hold the rest - since the profiler picks the positions
+	# itself afterwards. The red car starts at the exit purely so the component
+	# it lives in is guaranteed to contain finished boards.
+	var out := [{"pos": Vector2i(SIZE - 2, EXIT_ROW), "len": 2, "horiz": true}]
+	var wanted: int = clampi(8 + level / 3, 8, 11)
 	var attempts := 0
-	while vehicles.size() < wanted + 1 and attempts < 600:
+	while out.size() < wanted and attempts < 400:
 		attempts += 1
-		var horiz := randi() % 2 == 0
-		var length := 2 if randf() < 0.72 else 3
-		var v := {
-			"pos": Vector2i(randi() % SIZE, randi() % SIZE),
-			"len": length,
-			"horiz": horiz,
-		}
-		if _fits(v, vehicles):
-			vehicles.append(v)
-
-	# Now shuffle by making legal moves. Every one is reversible, so the board
-	# stays solvable no matter where this ends up.
-	scramble = []
-	var steps: int = 40 + level * 10
-	for _i in steps:
-		var idx := randi() % vehicles.size()
-		var dir := 1 if randi() % 2 == 0 else -1
-		if can_move(idx, dir):
-			var v: Dictionary = vehicles[idx]
-			v.pos += Vector2i(dir, 0) if v.horiz else Vector2i(0, dir)
-			vehicles[idx] = v
-			scramble.append({"v": idx, "d": dir})
+		var v := _random_vehicle()
+		if _fits(v, out):
+			out.append(v)
+	return out if out.size() >= 4 else []
 
 
 # --- Input ---------------------------------------------------------------------

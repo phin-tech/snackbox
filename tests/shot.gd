@@ -22,6 +22,12 @@ func _ready() -> void:
 
 	seed(7)
 	var node := _build()
+	# Landscape screens report their own size; match it or the frame is cropped.
+	if node.has_method("design_size"):
+		var design: Vector2 = node.design_size()
+		get_window().content_scale_size = Vector2i(design)
+		get_window().size = Vector2i(design)
+		await get_tree().process_frame
 	add_child(node)
 	node.set_process(false)
 	_demo(node)
@@ -66,6 +72,10 @@ func _demo(node: Node2D) -> void:
 		_demo_snake(node)
 	elif node is Doubles:
 		_demo_doubles(node)
+	elif node is Pyramid:
+		_demo_pyramid(node)
+	elif node is Decant:
+		_demo_decant(node)
 	elif node is Linkup:
 		_demo_linkup(node)
 	elif node is Gridlock:
@@ -173,6 +183,39 @@ func _demo_shapes(g: Shapes) -> void:
 	for i in keep:
 		g.place(g.solution[i].rect)
 	g.cursor = g.solution[g.solution.size() - 1].rect.position
+
+
+func _demo_pyramid(g: Pyramid) -> void:
+	# Take a few obvious pairs so the shot shows a pyramid part-cleared.
+	for _pass in 4:
+		for i in Pyramid.SLOTS:
+			if not g.available(i):
+				continue
+			if g.value_of(g.pyramid[i]) == 13:
+				g.take_pyramid(i)
+				continue
+			for j in Pyramid.SLOTS:
+				if i == j or not g.available(j):
+					continue
+				if g.value_of(g.pyramid[i]) + g.value_of(g.pyramid[j]) == 13:
+					g.picked = -1
+					g.take_pyramid(i)
+					g.take_pyramid(j)
+					break
+	for _i in 3:
+		g.deal()
+
+
+func _demo_decant(g: Decant) -> void:
+	g.level = 3
+	g._start_level()
+	# A couple of sensible pours, so it doesn't look freshly dealt.
+	for _i in 3:
+		for from in g.tubes.size():
+			for to in g.tubes.size():
+				if g.can_pour(from, to) and not g.tubes[to].is_empty():
+					g.pour(from, to)
+					break
 
 
 func _demo_doubles(g: Doubles) -> void:

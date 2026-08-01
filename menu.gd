@@ -24,6 +24,8 @@ const ENTRIES := [
 	{"id": "shapes", "label": "Shapes", "desc": "Carve the grid into the rectangles it asks for."},
 	{"id": "snake", "label": "Snake", "desc": "Eat, grow, don't bite yourself."},
 	{"id": "doubles", "label": "Doubles", "desc": "Slide and merge your way to 2048."},
+	{"id": "pyramid", "label": "Pyramid", "desc": "Pair cards that add to 13."},
+	{"id": "decant", "label": "Decant", "desc": "Pour until every tube is one colour."},
 ]
 
 var index := 1

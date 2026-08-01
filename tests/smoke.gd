@@ -41,10 +41,17 @@ func _ready() -> void:
 	_test_linkup_editing()
 	_test_gridlock_generator()
 	_test_gridlock_solvable()
+	_test_gridlock_solver()
 	_test_gridlock_moves()
 	_test_shapes_generator()
 	_test_shapes_solving()
 	_test_shapes_rules()
+	_test_cards()
+	_test_pyramid_deal()
+	_test_pyramid_rules()
+	_test_pyramid_stock()
+	_test_decant_deal()
+	_test_decant_rules()
 
 
 	_cleanup_scores()
@@ -812,6 +819,9 @@ func _test_gridlock_generator() -> void:
 		if not t.horiz or t.len != 2 or t.pos.y != Gridlock.EXIT_ROW:
 			_fail("gridlock/gen: level %d red car is not a 2-long car on the exit row" % lvl)
 
+		if g.min_solution < Gridlock.HARD_FLOOR:
+			_fail("gridlock/gen: level %d only needs %d moves" % [lvl, g.min_solution])
+
 		var seen := {}
 		for v in g.vehicles:
 			for c in g.cells_of(v):
@@ -826,24 +836,79 @@ func _test_gridlock_generator() -> void:
 
 
 func _test_gridlock_solvable() -> void:
-	# The board was scrambled from the finished position with reversible moves,
-	# so undoing that scramble backwards has to park the red car at the exit.
+	# Boards are graded as they are generated, so the solver has to agree with
+	# the number the generator recorded, and playing that solution back has to
+	# finish the board in exactly that many moves. The floor is the real point
+	# of the exercise: the generator this replaced handed out boards where the
+	# red car could simply drive straight out.
 	var g: Gridlock = load("res://gridlock.tscn").instantiate()
 	_drive(g)
 
-	for lvl in [1, 3, 6, 9]:
+	var below_band := 0
+	for lvl in range(1, 11):
 		g.level = lvl
 		g._start_level()
-		var steps: Array = g.scramble.duplicate()
-		steps.reverse()
-		for step in steps:
-			if not g.move_vehicle(step.v, -step.d):
-				_fail("gridlock/solve: level %d could not undo a scramble move" % lvl)
+
+		var band: Vector2i = g.difficulty_band(lvl)
+		var shortest: int = g.min_moves()
+		if shortest < 0:
+			_fail("gridlock/solve: level %d handed out an unsolvable board" % lvl)
+			continue
+		if shortest != g.min_solution:
+			_fail("gridlock/solve: level %d recorded %d moves but the solver found %d"
+				% [lvl, g.min_solution, shortest])
+		if shortest < Gridlock.HARD_FLOOR:
+			_fail("gridlock/solve: level %d needs only %d moves" % [lvl, shortest])
+		if shortest < band.x:
+			below_band += 1
+
+		var path: Array = g.solve()
+		for step in path:
+			if not g.move_vehicle(step.v, step.d):
+				_fail("gridlock/solve: level %d could not play its own solution" % lvl)
 				break
 		if not g.is_solved():
 			_fail("gridlock/solve: level %d did not end with the red car at the exit" % lvl)
 		if not g.solved:
 			_fail("gridlock/solve: level %d never reported itself solved" % lvl)
+		if g.moves != shortest:
+			_fail("gridlock/solve: level %d took %d moves to play a %d move solution"
+				% [lvl, g.moves, shortest])
+
+	# The band is a target rather than a promise - generation gives up on it when
+	# the clock runs out - but missing it often would mean grading has stopped
+	# working, so allow only the odd near miss.
+	if below_band > 3:
+		_fail("gridlock/solve: %d of 10 boards fell short of their difficulty band" % below_band)
+	g.queue_free()
+
+
+func _test_gridlock_solver() -> void:
+	# Hand-built boards with answers that can be counted by eye.
+	var g: Gridlock = load("res://gridlock.tscn").instantiate()
+	_drive(g)
+
+	# One car in the way: shift it down, then drive four cells to the exit. A
+	# slide of any length is a single move, so that is two, not five.
+	g.vehicles = [
+		{"pos": Vector2i(0, Gridlock.EXIT_ROW), "len": 2, "horiz": true},
+		{"pos": Vector2i(3, Gridlock.EXIT_ROW), "len": 2, "horiz": false},
+	]
+	if g.min_moves() != 2:
+		_fail("gridlock/solver: a two move board was measured at %d" % g.min_moves())
+	var path: Array = g.solve()
+	if path.size() != 2:
+		_fail("gridlock/solver: solution for a two move board has %d moves" % path.size())
+
+	# A column packed with cars that have nowhere to go is a wall.
+	g.vehicles = [
+		{"pos": Vector2i(0, Gridlock.EXIT_ROW), "len": 2, "horiz": true},
+		{"pos": Vector2i(3, 0), "len": 2, "horiz": false},
+		{"pos": Vector2i(3, 2), "len": 2, "horiz": false},
+		{"pos": Vector2i(3, 4), "len": 2, "horiz": false},
+	]
+	if g.min_moves() != -1:
+		_fail("gridlock/solver: a walled-in board was reported solvable in %d" % g.min_moves())
 	g.queue_free()
 
 
@@ -992,4 +1057,262 @@ func _test_shapes_rules() -> void:
 	g.remove_at(g.solution[0].rect.position)
 	if g.check(g.solution[0].rect) != "":
 		_fail("shapes/rules: removing a shape did not free its squares")
+	g.queue_free()
+
+
+# --- Cards --------------------------------------------------------------------
+
+func _test_cards() -> void:
+	var deck := Cards.fresh_deck()
+	if deck.size() != 52:
+		_fail("cards: a fresh deck has %d cards" % deck.size())
+
+	var seen := {}
+	var ranks := {}
+	var suits := {}
+	for card in deck:
+		if seen.has(card):
+			_fail("cards: duplicate card %d in a fresh deck" % card)
+			return
+		seen[card] = true
+		ranks[Cards.rank_of(card)] = true
+		suits[Cards.suit_of(card)] = true
+	if ranks.size() != 13 or suits.size() != 4:
+		_fail("cards: deck covers %d ranks and %d suits" % [ranks.size(), suits.size()])
+
+	# Red is exactly diamonds and hearts.
+	for card in deck:
+		var expect: bool = Cards.suit_of(card) == Cards.DIAMONDS or Cards.suit_of(card) == Cards.HEARTS
+		if Cards.is_red(card) != expect:
+			_fail("cards: card %d has the wrong colour" % card)
+			return
+
+	# A shuffle keeps every card, and a seed makes it repeatable.
+	var a := Cards.shuffled_deck(1234)
+	var b := Cards.shuffled_deck(1234)
+	var c := Cards.shuffled_deck(9999)
+	if a != b:
+		_fail("cards: the same seed dealt two different decks")
+	if a == c:
+		_fail("cards: two different seeds dealt the same deck")
+	var check := {}
+	for card in a:
+		check[card] = true
+	if check.size() != 52:
+		_fail("cards: a shuffle lost cards (%d unique)" % check.size())
+
+
+# --- Pyramid ------------------------------------------------------------------
+
+func _test_pyramid_deal() -> void:
+	var g: Pyramid = load("res://pyramid.tscn").instantiate()
+	_drive(g)
+
+	if g.pyramid.size() != Pyramid.SLOTS:
+		_fail("pyramid: dealt %d cards into the pyramid" % g.pyramid.size())
+	if g.stock.size() != 52 - Pyramid.SLOTS:
+		_fail("pyramid: stock holds %d cards" % g.stock.size())
+
+	var seen := {}
+	for card in g.pyramid + g.stock:
+		if seen.has(card):
+			_fail("pyramid: card %d dealt twice" % card)
+			return
+		seen[card] = true
+	if seen.size() != 52:
+		_fail("pyramid: the deal covers %d cards" % seen.size())
+
+	# The bottom row starts free; nothing above it does.
+	for col in Pyramid.ROWS:
+		if not g.available(Pyramid.slot_index(Pyramid.ROWS - 1, col)):
+			_fail("pyramid: bottom row card %d is not free at the deal" % col)
+	if g.available(0):
+		_fail("pyramid: the apex is free at the deal")
+	g.queue_free()
+
+
+func _test_pyramid_rules() -> void:
+	var g: Pyramid = load("res://pyramid.tscn").instantiate()
+	_drive(g)
+
+	# A card frees up exactly when both cards resting on it are gone.
+	var parent := Pyramid.slot_index(Pyramid.ROWS - 2, 0)
+	var left := Pyramid.slot_index(Pyramid.ROWS - 1, 0)
+	var right := Pyramid.slot_index(Pyramid.ROWS - 1, 1)
+	g.gone[left] = true
+	if g.available(parent):
+		_fail("pyramid: a card came free with one card still on it")
+	g.gone[right] = true
+	if not g.available(parent):
+		_fail("pyramid: a card stayed stuck with both cards off it")
+
+	# Values: ace low, king thirteen.
+	g.new_game()
+	for card in Cards.fresh_deck():
+		var v := g.value_of(card)
+		if v != Cards.rank_of(card) + 1 or v < 1 or v > 13:
+			_fail("pyramid: card %d valued %d" % [card, v])
+			return
+
+	# A king clears on its own; a pair making 13 clears together; anything else
+	# is refused.
+	g.new_game()
+	for i in Pyramid.SLOTS:
+		g.gone[i] = true
+	var a := Pyramid.slot_index(Pyramid.ROWS - 1, 0)
+	var b := Pyramid.slot_index(Pyramid.ROWS - 1, 1)
+	var k := Pyramid.slot_index(Pyramid.ROWS - 1, 2)
+	g.gone[a] = false
+	g.gone[b] = false
+	g.gone[k] = false
+	g.pyramid[a] = 3                       # 4 of clubs
+	g.pyramid[b] = 8                       # 9 of clubs -> 4 + 9 = 13
+	g.pyramid[k] = 12                      # king of clubs
+	g.picked = -1
+
+	g.take_pyramid(k)
+	if not g.gone[k]:
+		_fail("pyramid: a king did not clear on its own")
+
+	g.take_pyramid(a)
+	g.take_pyramid(b)
+	if not g.gone[a] or not g.gone[b]:
+		_fail("pyramid: a pair making 13 did not clear")
+
+	# A pair that doesn't make 13 stays put.
+	g.new_game()
+	for i in Pyramid.SLOTS:
+		g.gone[i] = true
+	g.gone[a] = false
+	g.gone[b] = false
+	g.pyramid[a] = 3                       # 4
+	g.pyramid[b] = 4                       # 5 -> 9, not 13
+	g.picked = -1
+	g.take_pyramid(a)
+	g.take_pyramid(b)
+	if g.gone[a] or g.gone[b]:
+		_fail("pyramid: a pair that does not make 13 was taken anyway")
+	g.queue_free()
+
+
+func _test_pyramid_stock() -> void:
+	var g: Pyramid = load("res://pyramid.tscn").instantiate()
+	_drive(g)
+
+	var stock_size := g.stock.size()
+	g.deal()
+	if g.waste.size() != 1 or g.stock.size() != stock_size - 1:
+		_fail("pyramid: turning a card did not move it to the waste")
+
+	# Empty the stock, then the turn should recycle the waste for the next pass.
+	while not g.stock.is_empty():
+		g.deal()
+	var in_waste := g.waste.size()
+	var passes := g.passes_left
+	g.deal()
+	if g.stock.size() != in_waste or not g.waste.is_empty():
+		_fail("pyramid: running out of stock did not turn the waste back over")
+	if g.passes_left != passes - 1:
+		_fail("pyramid: recycling did not use up a pass")
+
+	# On the last pass there is nothing left to do.
+	g.passes_left = 1
+	while not g.stock.is_empty():
+		g.deal()
+	if g.deal():
+		_fail("pyramid: recycled the waste with no passes left")
+
+	# Clearing the pyramid wins.
+	g.new_game()
+	for i in Pyramid.SLOTS:
+		g.gone[i] = true
+	g._check_won()
+	if not g.won:
+		_fail("pyramid: an empty pyramid was not a win")
+	g.queue_free()
+
+
+# --- Decant -------------------------------------------------------------------
+
+func _test_decant_deal() -> void:
+	var g: Decant = load("res://decant.tscn").instantiate()
+	_drive(g)
+
+	for lvl in [1, 3, 5, 7, 9]:
+		g.level = lvl
+		g._start_level()
+
+		var colours := g.colour_count()
+		if g.tubes.size() != colours + Decant.SPARE_TUBES:
+			_fail("decant: level %d dealt %d tubes for %d colours" % [lvl, g.tubes.size(), colours])
+
+		# Every colour appears exactly a full tube's worth.
+		var counts := {}
+		for tube in g.tubes:
+			if tube.size() > Decant.CAPACITY:
+				_fail("decant: level %d overfilled a tube (%d units)" % [lvl, tube.size()])
+				return
+			for unit in tube:
+				counts[unit] = counts.get(unit, 0) + 1
+		if counts.size() != colours:
+			_fail("decant: level %d dealt %d colours, wanted %d" % [lvl, counts.size(), colours])
+		for colour in counts:
+			if counts[colour] != Decant.CAPACITY:
+				_fail("decant: level %d dealt %d units of colour %d" % [lvl, counts[colour], colour])
+				return
+
+		# The whole point of the generator: never hand out a finished or
+		# barely-stirred board, and never an unwinnable one.
+		if g.is_solved():
+			_fail("decant: level %d was dealt already sorted" % lvl)
+		if g.mixed_tubes() < 2:
+			_fail("decant: level %d was dealt with only %d mixed tubes" % [lvl, g.mixed_tubes()])
+		if not g._solvable(g.tubes):
+			_fail("decant: level %d dealt a board the solver can't finish" % lvl)
+	g.queue_free()
+
+
+func _test_decant_rules() -> void:
+	var g: Decant = load("res://decant.tscn").instantiate()
+	_drive(g)
+	g.level = 1
+	g._start_level()
+
+	# Hand-built tubes, so the rules are checked against cases countable by eye.
+	g.tubes = [[0, 0, 1], [1, 1], [], [2, 2, 2, 2]] as Array
+
+	if not g.can_pour(0, 1):
+		_fail("decant/rules: refused a pour onto a matching colour")
+	if g.can_pour(1, 3):
+		_fail("decant/rules: allowed a pour onto a different colour")
+	if g.can_pour(3, 2):
+		_fail("decant/rules: allowed tipping a finished tube into an empty one")
+	if g.can_pour(2, 0):
+		_fail("decant/rules: allowed a pour out of an empty tube")
+
+	# A pour moves the whole run of matching liquid, or as much as fits.
+	g.tubes = [[0, 0, 1, 1], [1], [], []] as Array
+	g.pour(0, 1)
+	if g.tubes[0] != [0, 0] or g.tubes[1] != [1, 1, 1]:
+		_fail("decant/rules: a pour moved the wrong amount (%s / %s)" % [str(g.tubes[0]), str(g.tubes[1])])
+
+	# Undo puts it back exactly.
+	g.undo()
+	if g.tubes[0] != [0, 0, 1, 1] or g.tubes[1] != [1]:
+		_fail("decant/rules: undo did not restore the tubes")
+
+	# Only room for what fits.
+	g.tubes = [[0, 0, 0], [1, 0], [], []] as Array
+	g.history = []
+	g.pour(0, 1)
+	if g.tubes[1].size() != Decant.CAPACITY or g.tubes[0].size() != 1:
+		_fail("decant/rules: a pour overfilled or under-filled (%s / %s)" % [str(g.tubes[0]), str(g.tubes[1])])
+
+	# Sorted means every tube is empty or a single full colour.
+	g.tubes = [[0, 0, 0, 0], [1, 1, 1, 1], [], []] as Array
+	if not g.is_solved():
+		_fail("decant/rules: a sorted board was not recognised")
+	g.tubes = [[0, 0, 0], [1, 1, 1, 1], [0], []] as Array
+	if g.is_solved():
+		_fail("decant/rules: an unsorted board was called finished")
 	g.queue_free()

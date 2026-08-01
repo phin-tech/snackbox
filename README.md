@@ -78,6 +78,28 @@ three — and a clue carrying a number fixes its area too.
 
 Drag out a rectangle, click one again to take it back · `N` clear · `R` new board
 
+## Pyramid
+
+Solitaire. Clear the pyramid by pairing cards that add to 13 — ace is 1, so a
+king goes on its own. A card is only free once both cards resting on it are
+gone. Three passes through the stock.
+
+<img src="docs/pyramid.png" alt="Pyramid" width="420">
+
+Click a card to pick it, click its partner to take the pair · click the stock to
+turn · `R` new deal
+
+## Decant
+
+Pour between tubes until each one holds a single colour. A pour needs an empty
+tube or the same colour already on top, and it moves the whole run of matching
+liquid — or as much of it as fits.
+
+<img src="docs/decant.png" alt="Decant" width="300">
+
+Click a tube to lift it, then another to pour, or press its number · `Z` undo ·
+`R` new board
+
 ## Snake
 
 Eat, grow, don't run into the walls or yourself. It speeds up as you get longer.

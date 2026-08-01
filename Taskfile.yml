@@ -77,7 +77,7 @@ tasks:
     deps: [_check-godot]
     cmds:
       - mkdir -p docs
-      - for: ["menu", "marathon", "pills", "mondrian", "snake", "doubles", "linkup", "gridlock", "shapes"]
+      - for: ["menu", "marathon", "pills", "mondrian", "snake", "doubles", "linkup", "gridlock", "shapes", "pyramid", "decant"]
         cmd: '{{.GODOT}} --path . res://tests/shot.tscn -- --id={{.ITEM}} --out={{.TASKFILE_DIR}}/docs/{{.ITEM}}.png'
 
   # --- Building ---------------------------------------------------------------
