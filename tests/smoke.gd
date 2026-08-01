@@ -57,6 +57,7 @@ func _ready() -> void:
 	_test_fence_levels()
 	_test_seed_codes()
 	_test_seed_reproducibility()
+	_test_score_tables()
 
 
 	_cleanup_scores()
@@ -1543,3 +1544,71 @@ func _test_seed_reproducibility() -> void:
 		a.queue_free()
 		b.queue_free()
 		c.queue_free()
+
+
+# --- Named score tables --------------------------------------------------------
+
+func _test_score_tables() -> void:
+	Scores.clear()
+
+	if not Scores.table("t").is_empty():
+		_fail("tables: a fresh table was not empty")
+	if not Scores.qualifies("t", 1.0):
+		_fail("tables: an empty table turned away a score")
+
+	Scores.submit_entry("t", "ADA", 100.0, "A7K2")
+	Scores.submit_entry("t", "GRACE", 300.0, "A7K2")
+	Scores.submit_entry("t", "ALAN", 200.0, "A7K2")
+
+	var rows := Scores.table("t")
+	if rows.size() != 3:
+		_fail("tables: three entries produced %d rows" % rows.size())
+	elif str(rows[0].name) != "GRACE" or str(rows[2].name) != "ADA":
+		_fail("tables: rows are not in descending order (%s first, %s last)"
+			% [str(rows[0].name), str(rows[2].name)])
+	if str(rows[0].seed) != "A7K2":
+		_fail("tables: the seed was not kept with the score")
+
+	# Placing comes back so a game can say where you landed.
+	if Scores.submit_entry("t", "BOB", 250.0, "A7K2") != 2:
+		_fail("tables: a second-best score did not report second place")
+
+	# The table is capped, and the worst falls off the end.
+	for i in Scores.TABLE_SIZE + 4:
+		Scores.submit_entry("t", "N%d" % i, float(1000 + i), "")
+	rows = Scores.table("t")
+	if rows.size() != Scores.TABLE_SIZE:
+		_fail("tables: the table grew to %d rows" % rows.size())
+	for row in rows:
+		if float(row.score) < 1000.0:
+			_fail("tables: a low score survived being pushed off the table")
+			break
+	if Scores.qualifies("t", 5.0):
+		_fail("tables: a full table accepted a score worse than all of them")
+
+	# Times sort the other way.
+	Scores.submit_entry("time", "ADA", 30.0, "", true)
+	Scores.submit_entry("time", "ALAN", 20.0, "", true)
+	var times := Scores.table("time")
+	if str(times[0].name) != "ALAN":
+		_fail("tables: a faster time did not come first (%s did)" % str(times[0].name))
+	if not Scores.qualifies("time", 10.0, true):
+		_fail("tables: a faster time was turned away")
+
+	# A blank name still records rather than vanishing.
+	Scores.submit_entry("anon", "   ", 5.0)
+	if Scores.table("anon").is_empty():
+		_fail("tables: an empty name dropped the score entirely")
+
+	# The last name used is remembered, so it can be offered next time.
+	Scores.remember_name("ADA")
+	if Scores.last_name() != "ADA":
+		_fail("tables: the last name was not remembered")
+
+	# And it all survives a trip through the file.
+	Scores.reload()
+	if Scores.table("t").size() != Scores.TABLE_SIZE:
+		_fail("tables: the table did not survive a reload")
+	if Scores.last_name() != "ADA":
+		_fail("tables: the remembered name did not survive a reload")
+	Scores.clear()

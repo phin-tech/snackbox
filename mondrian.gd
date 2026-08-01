@@ -68,6 +68,7 @@ var regions := []                 # colour per sealed region
 var enemies := []                 # [{pos: Vector2, vel: Vector2}]
 var flash := 0.0
 var recorded := false
+var entry := Scores.NameEntry.new()
 
 
 func _ready() -> void:
@@ -343,6 +344,9 @@ func _read_direction() -> Vector2i:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if entry.handle_key(event as InputEventKey, score):
+		queue_redraw()
+		return
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
 			exit_to_menu.emit()
@@ -364,6 +368,8 @@ func _process(delta: float) -> void:
 	if state == LOST and not recorded:
 		recorded = true
 		Scores.submit_high("mondrian", score)
+		if Scores.qualifies("mondrian", score):
+			entry.start("mondrian")
 
 	if state == WON or state == LOST:
 		queue_redraw()
@@ -446,6 +452,9 @@ func _draw() -> void:
 	_draw_hud()
 	_draw_controls()
 
+	entry.draw(self, Main.DESIGN_SIZE.x, "MADE THE TABLE")
+	if entry.active:
+		return
 	if state == WON:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "CANVAS FILLED", "ENTER FOR LEVEL %d" % (level + 1))
 	elif state == LOST:

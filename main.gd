@@ -29,6 +29,7 @@ const GAMES := {
 	"pyramid": preload("res://pyramid.tscn"),
 	"decant": preload("res://decant.tscn"),
 	"fence": preload("res://fence.tscn"),
+	"highscores": preload("res://highscores.tscn"),
 }
 
 var screen: Node2D = null

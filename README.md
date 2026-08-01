@@ -12,6 +12,10 @@ task --list     # everything else
 
 Press `F` for fullscreen, `Esc` to return to the menu from any game.
 
+**High scores.** Finish a run well and you're asked for your name. The tables
+live under **High Scores** on the menu — Fence keeps one per seed, since a score
+only means something against the board it was played on.
+
 **Seeds.** Fence, Linkup, Shapes, Gridlock and Decant all show a four-character
 seed. Everyone gets the same one each day, so you can compare scores on the same
 board — press `S` to type someone else's and play theirs instead.

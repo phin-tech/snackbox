@@ -27,6 +27,7 @@ var score := 0
 var dead := false
 var paused := false
 var step_timer := 0.0
+var entry := Scores.NameEntry.new()
 var grow_by := 0
 
 
@@ -109,11 +110,16 @@ func _step() -> void:
 func _die() -> void:
 	dead = true
 	Scores.submit_high("snake", score)
+	if Scores.qualifies("snake", score):
+		entry.start("snake")
 	queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if entry.handle_key(event as InputEventKey, score):
+		queue_redraw()
 		return
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
@@ -197,6 +203,9 @@ func _draw() -> void:
 		Blocks.tracked(self, Vector2(ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16
 
+	entry.draw(self, Main.DESIGN_SIZE.x, "MADE THE TABLE")
+	if entry.active:
+		return
 	if paused:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "PAUSED", "P to resume")
 	elif dead:

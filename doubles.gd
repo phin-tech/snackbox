@@ -44,6 +44,7 @@ var won := false              # hit 2048 at least once; play carries on
 var dead := false
 var spawned := Vector2i(-1, -1)
 var pop := 0.0
+var entry := Scores.NameEntry.new()
 
 
 func _ready() -> void:
@@ -172,11 +173,16 @@ func _move(dir: Vector2i) -> void:
 	if not _has_moves():
 		dead = true
 		Scores.submit_high("doubles", score)
+		if Scores.qualifies("doubles", score):
+			entry.start("doubles")
 	queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if entry.handle_key(event as InputEventKey, score):
+		queue_redraw()
 		return
 	match (event as InputEventKey).physical_keycode:
 		KEY_ESCAPE:
@@ -329,5 +335,8 @@ func _draw_chrome(side: int) -> void:
 		Blocks.tracked(self, Vector2(ORIGIN.x, cy), line, 10, Blocks.INK_FAINT)
 		cy += 16
 
+	entry.draw(self, Main.DESIGN_SIZE.x, "MADE THE TABLE")
+	if entry.active:
+		return
 	if dead:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "NO MOVES LEFT", "%d points        ENTER to play again" % score)

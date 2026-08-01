@@ -116,6 +116,7 @@ var arr_timer := 0.0
 var clearing_rows: Array[int] = []
 var clear_timer := 0.0
 var recorded := false
+var entry := Scores.NameEntry.new()
 
 
 func _ready() -> void:
@@ -357,6 +358,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	var code := k.physical_keycode
 
+	if k.pressed and entry.handle_key(k, elapsed if mode == "sprint" else float(score)):
+		queue_redraw()
+		return
+
 	if k.pressed:
 		match code:
 			KEY_ESCAPE:
@@ -416,10 +421,15 @@ func _record() -> void:
 	# goal was actually reached, not when the run topped out.
 	recorded = true
 	if mode == "sprint":
-		if finished:
-			Scores.submit_low("blockfall.sprint", elapsed)
-	else:
-		Scores.submit_high("blockfall." + mode, score)
+		if not finished:
+			return                      # a topped-out sprint set no time
+		Scores.submit_low("blockfall.sprint", elapsed)
+		if Scores.qualifies("blockfall.sprint", elapsed, true):
+			entry.start("blockfall.sprint", true)
+		return
+	Scores.submit_high("blockfall." + mode, score)
+	if Scores.qualifies("blockfall." + mode, score):
+		entry.start("blockfall." + mode)
 
 
 func _best_row() -> Array:
@@ -545,6 +555,9 @@ func _draw() -> void:
 	_draw_panel()
 	_draw_controls()
 
+	entry.draw(self, Main.DESIGN_SIZE.x, "MADE THE TABLE")
+	if entry.active:
+		return
 	if paused:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "PAUSED", "P to resume")
 	elif finished:

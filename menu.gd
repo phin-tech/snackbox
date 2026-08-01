@@ -48,6 +48,7 @@ const TREE := [
 			{"id": "mondrian", "label": "Mondrian", "note": "Paint the canvas, dodge the drifters."},
 		],
 	},
+	{"id": "highscores", "label": "High Scores", "note": "Who has done best at what"},
 	{
 		"label": "Cards", "note": "A deck and a table",
 		"children": [

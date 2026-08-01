@@ -31,6 +31,7 @@ var best_this_level := 0
 var message := ""
 var message_timer := 0.0
 var seeds := Seeds.Entry.new("fence")
+var entry := Scores.NameEntry.new()
 
 
 func _ready() -> void:
@@ -198,6 +199,11 @@ func _close() -> void:
 	best_this_level = max(best_this_level, score)
 	if score >= par:
 		Scores.submit_high("fence", level)
+		# The table is per seed: a score only means anything against the board
+		# it was played on.
+		var key := "fence." + Seeds.code(seeds.base)
+		if Scores.qualifies(key, score):
+			entry.start(key)
 		_say("PAR MET" if score == par else "OVER PAR")
 	else:
 		_say("%d SHORT OF PAR" % (par - score))
@@ -364,6 +370,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 
+	if entry.handle_key(event as InputEventKey, float(score), Seeds.code(seeds.base)):
+		queue_redraw()
+		return
+
 	# Seed entry takes keys first, so typing a code can't also drive the game.
 	match seeds.handle_key(event as InputEventKey):
 		Seeds.Entry.CONSUMED:
@@ -450,6 +460,9 @@ func _draw() -> void:
 	Blocks.outline(self, board, Blocks.INK, 1.0)
 	_draw_hud()
 
+	entry.draw(self, Main.DESIGN_SIZE.x, "MADE THE TABLE")
+	if entry.active:
+		return
 	if closed and score >= par:
 		Blocks.banner(self, Main.DESIGN_SIZE.x, "ENCLOSED", "%d POINTS        ENTER FOR LEVEL %d" % [score, level + 1])
 
