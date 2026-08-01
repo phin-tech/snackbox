@@ -910,6 +910,14 @@ func _test_shapes_generator() -> void:
 		if seen.size() != g.size * g.size:
 			_fail("shapes/gen: level %d covers %d of %d cells" % [lvl, seen.size(), g.size * g.size])
 
+		# No piece may be a single square - those solve themselves.
+		for piece in g.solution:
+			var pr: Rect2i = piece.rect
+			if pr.size.x * pr.size.y < Shapes.MIN_AREA:
+				_fail("shapes/gen: level %d produced a %dx%d piece"
+					% [lvl, pr.size.x, pr.size.y])
+				return
+
 		# Each piece holds exactly one clue, and that clue describes it.
 		for piece in g.solution:
 			var inside: Array = g.clues_inside(piece.rect)

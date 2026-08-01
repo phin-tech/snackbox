@@ -21,6 +21,9 @@ const TALL := 1
 const WIDE := 2
 const ANY := 3
 
+# A one-cell piece is a freebie, not a puzzle, so never cut one.
+const MIN_AREA := 2
+
 const COLORS := [
 	Color("f2b705"), Color("46ac5c"), Color("3d8be0"), Color("f0822f"),
 	Color("8f5fc0"), Color("28c2c2"), Color("e069a8"), Color("ff3b30"),
@@ -70,26 +73,38 @@ func cell_px() -> float:
 
 # --- Generation ---------------------------------------------------------------
 
+func _split_options(rect: Rect2i, vertical: bool) -> Array[int]:
+	# Cut positions where *both* halves still clear MIN_AREA. With a one-cell
+	# thickness that rules out slicing off a single square.
+	var out: Array[int] = []
+	var span: int = rect.size.x if vertical else rect.size.y
+	var thickness: int = rect.size.y if vertical else rect.size.x
+	for at in range(1, span):
+		if at * thickness >= MIN_AREA and (span - at) * thickness >= MIN_AREA:
+			out.append(at)
+	return out
+
+
 func _split(rect: Rect2i, out: Array) -> void:
 	var area: int = rect.size.x * rect.size.y
-	var can_v: bool = rect.size.x >= 2
-	var can_h: bool = rect.size.y >= 2
+	var v_options := _split_options(rect, true)
+	var h_options := _split_options(rect, false)
 
 	# Stop early sometimes so pieces come in a range of sizes.
-	if (not can_v and not can_h) or (area <= 6 and randf() < 0.45) or area <= 2:
+	if (v_options.is_empty() and h_options.is_empty()) or (area <= 6 and randf() < 0.45):
 		out.append(rect)
 		return
 
-	var vertical := can_v
-	if can_v and can_h:
+	var vertical := not v_options.is_empty()
+	if not v_options.is_empty() and not h_options.is_empty():
 		vertical = rect.size.x > rect.size.y or (rect.size.x == rect.size.y and randi() % 2 == 0)
 
 	if vertical:
-		var at: int = 1 + randi() % (rect.size.x - 1)
+		var at: int = v_options[randi() % v_options.size()]
 		_split(Rect2i(rect.position, Vector2i(at, rect.size.y)), out)
 		_split(Rect2i(rect.position + Vector2i(at, 0), Vector2i(rect.size.x - at, rect.size.y)), out)
 	else:
-		var at2: int = 1 + randi() % (rect.size.y - 1)
+		var at2: int = h_options[randi() % h_options.size()]
 		_split(Rect2i(rect.position, Vector2i(rect.size.x, at2)), out)
 		_split(Rect2i(rect.position + Vector2i(0, at2), Vector2i(rect.size.x, rect.size.y - at2)), out)
 
