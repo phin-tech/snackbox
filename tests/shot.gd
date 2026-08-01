@@ -66,6 +66,8 @@ func _demo(node: Node2D) -> void:
 		_demo_snake(node)
 	elif node is Doubles:
 		_demo_doubles(node)
+	elif node is Puck:
+		_demo_puck(node)
 
 
 func _demo_blocks(g: Game) -> void:
@@ -133,6 +135,18 @@ func _demo_snake(g: Snake) -> void:
 		g._step()
 		if g.dead:
 			return
+
+
+func _demo_puck(g: Puck) -> void:
+	# Play a little so the scoreboard isn't 0-0 and the puck is in flight.
+	g.state = Puck.PLAYING
+	for i in 900:
+		if i % 24 == 0:
+			g.key_dir = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1)][randi() % 3]
+		g._process(DT)
+		if g.state == Puck.WON or g.state == Puck.LOST:
+			g._start_match()
+			g.state = Puck.PLAYING
 
 
 func _demo_doubles(g: Doubles) -> void:

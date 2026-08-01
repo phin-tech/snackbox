@@ -19,6 +19,8 @@ const ENTRIES := [
 	{"id": "snake", "label": "Classic", "desc": "Eat, grow, don't bite yourself."},
 	{"header": "DOUBLES"},
 	{"id": "doubles", "label": "2048", "desc": "Slide and merge your way to 2048."},
+	{"header": "PUCK CAFE"},
+	{"id": "puck", "label": "Table Duel", "desc": "Air hockey against a roster of regulars."},
 ]
 
 var index := 1
@@ -69,6 +71,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			chosen.emit("snake")
 		KEY_7:
 			chosen.emit("doubles")
+		KEY_8:
+			chosen.emit("puck")
 
 
 func _draw() -> void:
@@ -80,15 +84,15 @@ func _draw() -> void:
 	Blocks.text(self, Vector2(32, 156), "SNACKBOX", 54, Blocks.INK)
 	Blocks.rule(self, Vector2(32, 176), w - 64, Blocks.RED, 5.0)
 
-	var y := 232.0
+	var y := 226.0
 	var number := 0
 	for i in ENTRIES.size():
 		var e: Dictionary = ENTRIES[i]
 		if e.has("header"):
-			y += 12
+			y += 10
 			Blocks.rule(self, Vector2(32, y - 14), w - 64, Blocks.INK, 1.0)
 			Blocks.tracked(self, Vector2(32, y + 2), e.header, 11, Blocks.INK_FAINT)
-			y += 22
+			y += 20
 			continue
 
 		number += 1
@@ -100,7 +104,7 @@ func _draw() -> void:
 		var label_color: Color = Blocks.PAPER if selected else Blocks.INK
 		Blocks.tracked(self, Vector2(40, y), "%02d" % number, 12, num_color)
 		Blocks.text(self, Vector2(80, y), e.label, 20, label_color)
-		y += 33
+		y += 30
 
 	Blocks.rule(self, Vector2(32, 648), w - 64, Blocks.INK, 1.0)
 	var current: Dictionary = ENTRIES[index]

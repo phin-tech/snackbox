@@ -36,6 +36,8 @@ func _ready() -> void:
 	_test_snake_growth()
 	_run_doubles()
 	_test_doubles_merges()
+	_run_puck()
+	_test_puck_goals()
 
 	_cleanup_scores()
 
@@ -648,4 +650,115 @@ func _test_doubles_merges() -> void:
 	_set_board(g, [[2, 2, 8, 16], [4, 2, 16, 8], [2, 4, 8, 16], [4, 2, 16, 8]])
 	if not g._has_moves():
 		_fail("doubles/dead: a board with an adjacent pair reported no moves")
+	g.queue_free()
+
+
+# --- Puck ---------------------------------------------------------------------
+
+func _run_puck() -> void:
+	var g: Puck = load("res://puck.tscn").instantiate()
+	_drive(g)
+
+	var goals := 0
+	var matches := 0
+	var last_total := 0
+
+	for i in FRAMES:
+		# Wander the mallet around the player half the way a hand would.
+		if i % 20 == 0:
+			g.key_dir = [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)][randi() % 4]
+		g._process(DT)
+		_check_puck(g)
+
+		var total: int = g.you + g.them
+		if total > last_total:
+			goals += 1
+		last_total = total
+
+		if g.state == Puck.WON or g.state == Puck.LOST:
+			matches += 1
+			g.opponent = (g.opponent + 1) % Puck.OPPONENTS.size()
+			g._start_match()
+			last_total = 0
+
+	if goals < 10:
+		_fail("puck: only %d goals in %d frames, the table is not being played" % [goals, FRAMES])
+	if matches == 0:
+		_fail("puck: no match ever reached %d goals" % Puck.GOALS_TO_WIN)
+	g.queue_free()
+
+
+func _check_puck(g: Puck) -> void:
+	# The puck must stay on the table, allowing a little slack for the
+	# substep that detects a goal before the reset.
+	var t := Puck.TABLE
+	if g.puck_pos.x < t.position.x - 40 or g.puck_pos.x > t.end.x + 40:
+		_fail("puck: puck left the table sideways at %f" % g.puck_pos.x)
+		return
+	if g.puck_pos.y < t.position.y - 40 or g.puck_pos.y > t.end.y + 40:
+		_fail("puck: puck left the table endways at %f" % g.puck_pos.y)
+		return
+	if g.puck_vel.length() > Puck.MAX_SPEED + 1.0:
+		_fail("puck: puck exceeded the speed limit (%f)" % g.puck_vel.length())
+		return
+
+	# Neither mallet may cross the centre line or leave the table.
+	var mid: float = t.position.y + t.size.y * 0.5
+	if g.player.y < mid + Puck.MALLET_R - 0.5:
+		_fail("puck: player mallet crossed the centre line (y=%f)" % g.player.y)
+	if g.ai.y > mid - Puck.MALLET_R + 0.5:
+		_fail("puck: opponent mallet crossed the centre line (y=%f)" % g.ai.y)
+	if g.player.x < t.position.x - 0.5 or g.player.x > t.end.x + 0.5:
+		_fail("puck: player mallet left the table (x=%f)" % g.player.x)
+
+
+func _test_puck_goals() -> void:
+	var g: Puck = load("res://puck.tscn").instantiate()
+	_drive(g)
+	g._start_match()
+	g.state = Puck.PLAYING
+
+	# Drive the puck into the opponent's wall: that is a point for the player.
+	g.puck_pos = Vector2(Puck.TABLE.position.x + 200, Puck.TABLE.position.y + 30)
+	g.puck_vel = Vector2(0, -400)
+	g.ai = Vector2(Puck.TABLE.end.x - 40, Puck.TABLE.position.y + 40)   # out of the way
+	var before := g.you
+	for _i in 40:
+		g._step_physics(DT)
+		if g.you != before:
+			break
+	if g.you != before + 1:
+		_fail("puck/goal: reaching the far wall did not score for the player")
+	if g.puck_pos != Puck.TABLE.position + Puck.TABLE.size * 0.5:
+		_fail("puck/goal: the puck was not re-served from the centre")
+
+	# And into the player's wall for the opponent.
+	g.state = Puck.PLAYING
+	g.puck_pos = Vector2(Puck.TABLE.position.x + 200, Puck.TABLE.end.y - 30)
+	g.puck_vel = Vector2(0, 400)
+	g.player = Vector2(Puck.TABLE.position.x + 40, Puck.TABLE.end.y - 40)
+	var before_them := g.them
+	for _i in 40:
+		g._step_physics(DT)
+		if g.them != before_them:
+			break
+	if g.them != before_them + 1:
+		_fail("puck/goal: reaching the near wall did not score for the opponent")
+
+	# A side wall reflects rather than scoring.
+	g.state = Puck.PLAYING
+	g.puck_pos = Vector2(Puck.TABLE.position.x + Puck.PUCK_R + 2, Puck.TABLE.position.y + 260)
+	g.puck_vel = Vector2(-300, 0)
+	g._step_physics(DT)
+	if g.puck_vel.x <= 0.0:
+		_fail("puck/wall: the puck did not bounce off the left wall (vx=%f)" % g.puck_vel.x)
+
+	# A mallet strike sends it back the other way.
+	g.state = Puck.PLAYING
+	g.player = Vector2(Puck.TABLE.position.x + 200, Puck.TABLE.end.y - 100)
+	g.puck_pos = g.player + Vector2(0, -(Puck.MALLET_R + Puck.PUCK_R) + 4)
+	g.puck_vel = Vector2(0, 260)      # heading into the mallet
+	g._hit(g.player, Vector2.ZERO)
+	if g.puck_vel.y >= 0.0:
+		_fail("puck/hit: the mallet did not send the puck back up the table")
 	g.queue_free()

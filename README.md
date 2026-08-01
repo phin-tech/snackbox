@@ -73,6 +73,16 @@ move. Reach 2048, then keep going until the board locks up.
 
 Controls: `← → ↑ ↓` or `WASD` slide, `R` restart, `Esc` menu.
 
+### Puck Café
+
+Table duel in the spirit of *Shufflepuck Café*. The whole back wall is the
+goal, so defence is entirely about where your mallet is. First to seven, then
+the next regular sits down — each one faster and better at reading the puck.
+
+<img src="docs/puck.png" alt="Puck Café" width="300">
+
+Controls: mouse or `← → ↑ ↓` move your mallet, `R` restart, `Esc` menu.
+
 ### Landgrab
 
 Qix style area claiming. Hold a direction to cut into open space, then get back
@@ -105,6 +115,8 @@ handful of functional colours.
 | `landgrab.gd` / `landgrab.tscn` | Landgrab |
 | `snake.gd` / `snake.tscn` | Snake |
 | `doubles.gd` / `doubles.tscn` | Doubles |
+| `puck.gd` / `puck.tscn` | Puck Café |
+| `scores.gd` | Persistent bests, shared by every game |
 | `tests/smoke.gd` | Headless test suite |
 | `tests/shot.gd` | Renders screenshots for the README |
 | `Taskfile.yml` | Run, test, build, install |
@@ -114,6 +126,12 @@ They share the drawing helpers in `blocks.gd` and nothing else — the boards an
 rules have little in common, and forcing a shared abstraction would cost more
 than it saves. Adding a game means dropping in a scene, adding a row to
 `Menu.ENTRIES`, and an entry in `Main.GAMES`.
+
+## High scores
+
+Bests persist in `user://scores.cfg` and show in each game's HUD. Scores are
+"higher is better"; Sprint records a time instead, and only when the line goal
+was actually reached rather than when the run topped out.
 
 ## Tests
 
