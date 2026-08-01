@@ -408,10 +408,7 @@ func _draw() -> void:
 			# avoiding, and a minus sign so the sign is never in doubt.
 			var tint: Color = Blocks.INK if v > 0 else Blocks.RED
 			var label := str(v) if v > 0 else "-" + str(-v)
-			var size := 20
-			var dims := Blocks.font().get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
-			var at := rect.position + (rect.size - dims) * 0.5 + Vector2(0, size * 0.36)
-			draw_string(Blocks.font(), at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, tint)
+			Blocks.text_in(self, rect, label, 20, tint)
 
 	# Grid corners, so the lattice you're drawing on is visible.
 	for r in ROWS + 1:
@@ -421,10 +418,16 @@ func _draw() -> void:
 	# The fence itself.
 	if path.size() >= 2:
 		var colour: Color = Blocks.INK
+		var thick := 5.0
 		for i in range(path.size() - 1):
 			var a := ORIGIN + Vector2(path[i]) * CELL
 			var b := ORIGIN + Vector2(path[i + 1]) * CELL
-			draw_line(a, b, colour, 5.0)
+			draw_line(a, b, colour, thick)
+		# Line ends are flat, so a right-angle turn leaves a notch. Cap every
+		# corner with a square the width of the fence.
+		for corner in path:
+			var at := ORIGIN + Vector2(corner) * CELL
+			draw_rect(Rect2(at - Vector2(thick, thick) * 0.5, Vector2(thick, thick)), colour)
 	if not path.is_empty() and not closed:
 		var head := ORIGIN + Vector2(path[path.size() - 1]) * CELL
 		draw_rect(Rect2(head - Vector2(5, 5), Vector2(10, 10)), Blocks.INK)

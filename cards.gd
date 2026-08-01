@@ -114,10 +114,7 @@ static func draw_face(ci: CanvasItem, rect: Rect2, card: int, dim := false) -> v
 		HORIZONTAL_ALIGNMENT_LEFT, -1, size, ink)
 
 	# One large pip in the middle carries the suit at a glance.
-	var big := int(rect.size.x * 0.52)
-	var dims := font.get_string_size(pip, HORIZONTAL_ALIGNMENT_LEFT, -1, big)
-	ci.draw_string(font, rect.position + Vector2((rect.size.x - dims.x) * 0.5, rect.size.y * 0.5 + big * 0.36),
-		pip, HORIZONTAL_ALIGNMENT_LEFT, -1, big, ink)
+	Blocks.text_in(ci, rect, pip, int(rect.size.x * 0.52), ink)
 
 
 static func draw_card(ci: CanvasItem, rect: Rect2, card: int, face_up: bool, dim := false) -> void:
@@ -132,10 +129,7 @@ static func draw_empty(ci: CanvasItem, rect: Rect2, label := "") -> void:
 	ci.draw_rect(rect, Color(1, 1, 1, 0.04))
 	ci.draw_rect(rect, Blocks.INK_FAINT, false, 1.0)
 	if label != "":
-		var font := Blocks.font()
-		var dims := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14)
-		ci.draw_string(font, rect.position + (rect.size - dims) * 0.5 + Vector2(0, 10),
-			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Blocks.INK_FAINT)
+		Blocks.text_in(ci, rect, label, 14, Blocks.INK_FAINT)
 
 
 static func highlight(ci: CanvasItem, rect: Rect2, color := Blocks.ACCENT) -> void:

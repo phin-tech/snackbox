@@ -279,9 +279,7 @@ func _draw_tile(rect: Rect2, v: int, bump := 0.0) -> void:
 		size = 36
 	# Warm and bone tiles need dark figures; the rest take light ones.
 	var text_col: Color = Blocks.PAPER if DARK_LABEL.has(v) else Blocks.INK
-	var dims := Blocks.font().get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
-	draw_string(Blocks.font(), r.position + Vector2((r.size.x - dims.x) * 0.5, r.size.y * 0.5 + size * 0.35),
-		label, HORIZONTAL_ALIGNMENT_LEFT, -1, size, text_col)
+	Blocks.text_in(self, r, label, size, text_col)
 
 
 func _draw_sliding() -> void:

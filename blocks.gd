@@ -42,7 +42,12 @@ static func block(ci: CanvasItem, rect: Rect2, color: Color, alpha := 1.0) -> vo
 
 
 static func outline(ci: CanvasItem, rect: Rect2, color := INK, width := 1.0) -> void:
-	ci.draw_rect(rect, color, false, width)
+	# Four filled bars rather than draw_rect's unfilled mode: its edges are
+	# separate strokes and leave a notch where they meet at the corners.
+	ci.draw_rect(Rect2(rect.position, Vector2(rect.size.x, width)), color)
+	ci.draw_rect(Rect2(Vector2(rect.position.x, rect.end.y - width), Vector2(rect.size.x, width)), color)
+	ci.draw_rect(Rect2(rect.position, Vector2(width, rect.size.y)), color)
+	ci.draw_rect(Rect2(Vector2(rect.end.x - width, rect.position.y), Vector2(width, rect.size.y)), color)
 
 
 static func rule(ci: CanvasItem, from: Vector2, length: float, color := INK, thickness := 1.0) -> void:
@@ -74,6 +79,17 @@ static func stat(ci: CanvasItem, pos: Vector2, label: String, value: String, val
 	tracked(ci, pos, label, 11, INK_MID)
 	ci.draw_string(font(), pos + Vector2(0, value_size + 4), value,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, value_size, INK)
+
+
+static func text_in(ci: CanvasItem, rect: Rect2, s: String, size := 20, color := INK) -> void:
+	# Centre a string in a box. draw_string places text by its baseline, not its
+	# top, so centring means working from the font's ascent and descent - doing
+	# it by string height alone sits everything noticeably high.
+	var f := font()
+	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var baseline := rect.position.y + (rect.size.y + f.get_ascent(size) - f.get_descent(size)) * 0.5
+	ci.draw_string(f, Vector2(rect.position.x + (rect.size.x - w) * 0.5, baseline),
+		s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 
 static func panel(ci: CanvasItem, rect: Rect2) -> void:
