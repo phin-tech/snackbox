@@ -127,3 +127,6 @@ once per move. Reach 2048, then keep going until the board locks up.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Set in [Inter](https://rsms.me/inter/) by Rasmus Andersson, under the SIL Open
+Font License 1.1 — see [fonts/Inter-LICENSE.txt](fonts/Inter-LICENSE.txt).

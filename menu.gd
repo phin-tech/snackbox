@@ -183,7 +183,7 @@ func _draw() -> void:
 	var w := Main.DESIGN_SIZE.x
 
 	Blocks.tracked(self, Vector2(52, 96), "CASUAL GAMES", 12, Blocks.INK_MID)
-	Blocks.text(self, Vector2(50, 156), "SNACKBOX", 54, Blocks.INK)
+	draw_string(Blocks.bold(), Vector2(50, 156), "SNACKBOX", HORIZONTAL_ALIGNMENT_LEFT, -1, 54, Blocks.INK)
 	Blocks.rule(self, Vector2(52, 176), w - 104, Blocks.RED, 5.0)
 
 	# Breadcrumb, so it's always clear how deep you are.

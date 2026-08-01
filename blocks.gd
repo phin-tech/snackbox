@@ -30,8 +30,37 @@ const ACCENT := RED
 const TRACKING := 1.6                   # letter-spacing for small caps labels
 
 
+# Inter, under the SIL Open Font License. The built-in fallback is a generic
+# grotesque; Inter is the one this layout was designed around, and it carries
+# tabular figures - digits of equal width - which stops every counter on screen
+# twitching as its numbers change.
+const REGULAR_PATH := "res://fonts/Inter-Regular.ttf"
+const BOLD_PATH := "res://fonts/Inter-SemiBold.ttf"
+
+static var _regular: Font = null
+static var _bold: Font = null
+
+
+static func _tabular(path: String) -> Font:
+	var file := load(path)
+	if file == null:
+		return ThemeDB.fallback_font       # a missing font should not be fatal
+	var variation := FontVariation.new()
+	variation.base_font = file
+	variation.opentype_features = {"tnum": 1}
+	return variation
+
+
 static func font() -> Font:
-	return ThemeDB.fallback_font
+	if _regular == null:
+		_regular = _tabular(REGULAR_PATH)
+	return _regular
+
+
+static func bold() -> Font:
+	if _bold == null:
+		_bold = _tabular(BOLD_PATH)
+	return _bold
 
 
 static func block(ci: CanvasItem, rect: Rect2, color: Color, alpha := 1.0) -> void:
@@ -77,7 +106,7 @@ static func text_centered(ci: CanvasItem, center_x: float, y: float, s: String, 
 static func stat(ci: CanvasItem, pos: Vector2, label: String, value: String, value_size := 30) -> void:
 	# The Swiss unit: tiny tracked caps over a large figure, flush left.
 	tracked(ci, pos, label, 11, INK_MID)
-	ci.draw_string(font(), pos + Vector2(0, value_size + 4), value,
+	ci.draw_string(bold(), pos + Vector2(0, value_size + 4), value,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, value_size, INK)
 
 
