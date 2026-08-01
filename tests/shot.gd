@@ -51,7 +51,7 @@ func _ready() -> void:
 
 func _build() -> Node2D:
 	match id:
-		"menu":
+		"menu", "menu.sub":
 			return load("res://menu.tscn").instantiate()
 		"marathon", "sprint", "ultra":
 			var g: Game = load("res://game.tscn").instantiate()
@@ -62,6 +62,11 @@ func _build() -> Node2D:
 
 
 func _demo(node: Node2D) -> void:
+	if node is Menu:
+		if id == "menu.sub":
+			node.path = [1] as Array[int]      # Puzzles
+			node.index = 0
+		return
 	if node is Game:
 		_demo_blocks(node)
 	elif node is Pills:
