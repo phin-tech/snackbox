@@ -70,6 +70,8 @@ func _demo(node: Node2D) -> void:
 		_demo_linkup(node)
 	elif node is Gridlock:
 		_demo_gridlock(node)
+	elif node is Shapes:
+		_demo_shapes(node)
 
 
 func _demo_blocks(g: Game) -> void:
@@ -161,6 +163,16 @@ func _demo_gridlock(g: Gridlock) -> void:
 		g.move_vehicle(idx, 1 if randi() % 2 == 0 else -1)
 	g.selected = 0
 	g.cursor = g.vehicles[0].pos
+
+
+func _demo_shapes(g: Shapes) -> void:
+	# Lay down most of the tiling so the shot shows a board part-carved.
+	g.level = 3
+	g._start_level()
+	var keep: int = maxi(g.solution.size() - 3, 1)
+	for i in keep:
+		g.place(g.solution[i].rect)
+	g.cursor = g.solution[g.solution.size() - 1].rect.position
 
 
 func _demo_doubles(g: Doubles) -> void:

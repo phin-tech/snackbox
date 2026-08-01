@@ -21,6 +21,7 @@ const ENTRIES := [
 	{"id": "pills", "label": "Pill Doctor", "desc": "Match four to wipe out every virus."},
 	{"id": "mondrian", "label": "Mondrian", "desc": "Paint the canvas, dodge the drifters."},
 	{"id": "gridlock", "label": "Gridlock", "desc": "Slide the cars, free the red one."},
+	{"id": "shapes", "label": "Shapes", "desc": "Carve the grid into the rectangles it asks for."},
 	{"id": "snake", "label": "Snake", "desc": "Eat, grow, don't bite yourself."},
 	{"id": "doubles", "label": "Doubles", "desc": "Slide and merge your way to 2048."},
 ]
@@ -29,9 +30,9 @@ var index := 1
 var time := 0.0
 
 # Row geometry, shared by drawing and hit testing so they can't drift apart.
-const LIST_TOP := 228.0
-const ROW_H := 29.0
-const HEADER_H := 26.0
+const LIST_TOP := 224.0
+const ROW_H := 27.0
+const HEADER_H := 24.0
 
 
 func _ready() -> void:

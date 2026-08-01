@@ -33,6 +33,7 @@ const START_LIVES := 3
 const COLOR_TRAIL := Color("d0021b")
 const COLOR_PLAYER := Color("f4f1e8")
 const COLOR_ENEMY := Color("f4f1e8")
+const ENEMY_R := 0.55               # drifter radius, in cells
 const CANVAS := Color("1c1f24")      # bare, unpainted ground
 const LINE := Color("070707")
 const LINE_W := 3.0
@@ -61,6 +62,7 @@ var enter_from := Vector2i.ZERO   # safe cell the current trail started from
 var move_timer := 0.0
 var death_timer := 0.0
 
+var last_paint := Color("f4f1e8")  # avoid repeating this straight away
 var region_of := []               # region_of[row][col] -> index into regions
 var regions := []                 # colour per sealed region
 var enemies := []                 # [{pos: Vector2, vel: Vector2}]
@@ -95,6 +97,7 @@ func _start_level() -> void:
 		rr.fill(-1)
 		region_of.append(rr)
 	regions = [Color("f4f1e8")]        # the frame is white
+	last_paint = Color("f4f1e8")
 
 	# Two-cell border is the starting safe ground.
 	for r in ROWS:
@@ -214,7 +217,8 @@ func _paint_new_regions() -> void:
 			if grid[r][c] != FILLED or region_of[r][c] != -1:
 				continue
 			var id := regions.size()
-			regions.append(PAINTS[randi() % PAINTS.size()])
+			regions.append(Color("f4f1e8"))     # provisional; chosen below
+			var cells: Array[Vector2i] = [Vector2i(c, r)]
 			var queue: Array[Vector2i] = [Vector2i(c, r)]
 			region_of[r][c] = id
 			while not queue.is_empty():
@@ -226,7 +230,41 @@ func _paint_new_regions() -> void:
 					if grid[n.y][n.x] != FILLED or region_of[n.y][n.x] != -1:
 						continue
 					region_of[n.y][n.x] = id
+					cells.append(n)
 					queue.append(n)
+			regions[id] = _pick_paint(cells, id)
+
+
+func _pick_paint(cells: Array[Vector2i], id: int) -> Color:
+	# Avoid whatever the neighbouring fields are already wearing, so two blocks
+	# of the same colour don't merge into one shape visually.
+	var taken := {}
+	for cell in cells:
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n: Vector2i = cell + d
+			if not _in_bounds(n):
+				continue
+			var other: int = region_of[n.y][n.x]
+			if other == -1 or other == id or other >= regions.size():
+				continue
+			taken[regions[other]] = true
+
+	# Also skip whatever was painted last, so two fields sealed one after the
+	# other don't come out the same even when they aren't touching.
+	var options: Array[Color] = []
+	for paint in PAINTS:
+		if not taken.has(paint) and paint != last_paint:
+			options.append(paint)
+	if options.is_empty():
+		for paint in PAINTS:
+			if not taken.has(paint):
+				options.append(paint)
+	if options.is_empty():
+		options.assign(PAINTS)
+
+	var chosen: Color = options[randi() % options.size()]
+	last_paint = chosen
+	return chosen
 
 
 func _die() -> void:
@@ -261,17 +299,19 @@ func _move_enemies(delta: float) -> void:
 		var pos: Vector2 = e.pos
 		var vel: Vector2 = e.vel
 
-		var nx := Vector2(pos.x + vel.x * delta, pos.y)
-		if _blocked(nx):
+		var step_x := pos.x + vel.x * delta
+		var lead_x := Vector2(step_x + signf(vel.x) * ENEMY_R, pos.y)
+		if _blocked(lead_x) or _blocked(Vector2(step_x, pos.y)):
 			vel.x = -vel.x
 		else:
-			pos.x = nx.x
+			pos.x = step_x
 
-		var ny := Vector2(pos.x, pos.y + vel.y * delta)
-		if _blocked(ny):
+		var step_y := pos.y + vel.y * delta
+		var lead_y := Vector2(pos.x, step_y + signf(vel.y) * ENEMY_R)
+		if _blocked(lead_y) or _blocked(Vector2(pos.x, step_y)):
 			vel.y = -vel.y
 		else:
-			pos.y = ny.y
+			pos.y = step_y
 
 		e.pos = pos
 		e.vel = vel
@@ -398,9 +438,9 @@ func _draw() -> void:
 	# Drifters
 	for e in enemies:
 		var center: Vector2 = ORIGIN + (e.pos + Vector2(0.5, 0.5)) * CELL
-		draw_circle(center, CELL * 1.3, COLOR_ENEMY)
-		draw_arc(center, CELL * 1.3, 0.0, TAU, 24, LINE, 2.0)
-		draw_circle(center, CELL * 0.42, LINE)
+		draw_circle(center, CELL * ENEMY_R, COLOR_ENEMY)
+		draw_arc(center, CELL * ENEMY_R, 0.0, TAU, 24, LINE, 2.0)
+		draw_circle(center, CELL * ENEMY_R * 0.4, LINE)
 
 	Blocks.outline(self, board, LINE, 4.0)
 	_draw_hud()

@@ -42,6 +42,9 @@ func _ready() -> void:
 	_test_gridlock_generator()
 	_test_gridlock_solvable()
 	_test_gridlock_moves()
+	_test_shapes_generator()
+	_test_shapes_solving()
+	_test_shapes_rules()
 
 
 	_cleanup_scores()
@@ -880,4 +883,105 @@ func _test_gridlock_moves() -> void:
 			if not blocked and not g.can_move(i, dir):
 				_fail("gridlock/moves: vehicle %d refuses a clear move" % i)
 				return
+	g.queue_free()
+
+
+# --- Shapes -------------------------------------------------------------------
+
+func _test_shapes_generator() -> void:
+	var g: Shapes = load("res://shapes.tscn").instantiate()
+	_drive(g)
+
+	for lvl in range(1, 11):
+		g.level = lvl
+		g._start_level()
+
+		# The reference tiling must cover every cell exactly once.
+		var seen := {}
+		for piece in g.solution:
+			var r: Rect2i = piece.rect
+			for y in range(r.position.y, r.end.y):
+				for x in range(r.position.x, r.end.x):
+					var cell := Vector2i(x, y)
+					if seen.has(cell):
+						_fail("shapes/gen: level %d tiles %d,%d twice" % [lvl, x, y])
+						return
+					seen[cell] = true
+		if seen.size() != g.size * g.size:
+			_fail("shapes/gen: level %d covers %d of %d cells" % [lvl, seen.size(), g.size * g.size])
+
+		# Each piece holds exactly one clue, and that clue describes it.
+		for piece in g.solution:
+			var inside: Array = g.clues_inside(piece.rect)
+			if inside.size() != 1:
+				_fail("shapes/gen: level %d has a piece holding %d clues" % [lvl, inside.size()])
+				return
+			var clue: Dictionary = g.clues[inside[0]]
+			if clue.kind != Shapes.ANY and clue.kind != g.kind_of(piece.rect):
+				_fail("shapes/gen: level %d clue disagrees with its own piece" % lvl)
+				return
+			if clue.area > 0 and clue.area != piece.rect.size.x * piece.rect.size.y:
+				_fail("shapes/gen: level %d clue number disagrees with its own piece" % lvl)
+				return
+			if clue.kind == Shapes.ANY and clue.area == 0:
+				_fail("shapes/gen: level %d has a clue that constrains nothing" % lvl)
+				return
+	g.queue_free()
+
+
+func _test_shapes_solving() -> void:
+	# Laying the reference tiling back down through the real API must solve it.
+	var g: Shapes = load("res://shapes.tscn").instantiate()
+	_drive(g)
+
+	for lvl in [1, 4, 7, 10]:
+		g.level = lvl
+		g._start_level()
+		for piece in g.solution:
+			if not g.place(piece.rect):
+				_fail("shapes/solve: level %d rejected its own solution (%s)" % [lvl, g.message])
+				break
+		if g.filled_cells() != g.size * g.size:
+			_fail("shapes/solve: level %d filled %d of %d" % [lvl, g.filled_cells(), g.size * g.size])
+		if not g.solved:
+			_fail("shapes/solve: level %d was not reported solved" % lvl)
+	g.queue_free()
+
+
+func _test_shapes_rules() -> void:
+	var g: Shapes = load("res://shapes.tscn").instantiate()
+	_drive(g)
+	g.level = 1
+	g._start_level()
+
+	# Off the board.
+	if g.check(Rect2i(Vector2i(-1, 0), Vector2i(2, 2))) == "":
+		_fail("shapes/rules: accepted a rectangle hanging off the board")
+	# A rectangle with no clue in it.
+	var empty_found := false
+	for y in g.size:
+		for x in g.size:
+			if g.clue_at(Vector2i(x, y)) == -1 and not empty_found:
+				if g.check(Rect2i(Vector2i(x, y), Vector2i(1, 1))) == "":
+					_fail("shapes/rules: accepted a 1x1 with no clue in it")
+				empty_found = true
+	# Two clues in one rectangle, when the board has two on a shared line.
+	for a in g.clues.size():
+		for b in range(a + 1, g.clues.size()):
+			var ca: Vector2i = g.clues[a].cell
+			var cb: Vector2i = g.clues[b].cell
+			var r := g.rect_between(ca, cb)
+			if g.clues_inside(r).size() >= 2:
+				if g.check(r) == "":
+					_fail("shapes/rules: accepted a rectangle holding two clues")
+				break
+
+	# Overlap is refused once something is placed.
+	g.place(g.solution[0].rect)
+	if g.check(g.solution[0].rect) == "":
+		_fail("shapes/rules: accepted a rectangle overlapping a placed one")
+	# And taking it back frees the squares again.
+	g.remove_at(g.solution[0].rect.position)
+	if g.check(g.solution[0].rect) != "":
+		_fail("shapes/rules: removing a shape did not free its squares")
 	g.queue_free()

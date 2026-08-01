@@ -22,6 +22,7 @@ const GAMES := {
 	"linkup.normal": preload("res://linkup.tscn"),
 	"linkup.hard": preload("res://linkup.tscn"),
 	"gridlock": preload("res://gridlock.tscn"),
+	"shapes": preload("res://shapes.tscn"),
 }
 
 var screen: Node2D = null
